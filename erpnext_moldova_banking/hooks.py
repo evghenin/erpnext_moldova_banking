@@ -145,6 +145,12 @@ app_license = "mit"
 # 	}
 # }
 
+doc_events = {
+	"Bank Transaction": {
+		"before_insert": "erpnext_moldova_banking.utils.bank_transaction_unique_key.ensure_unique_transaction"
+	}
+}
+
 # Scheduled Tasks
 # ---------------
 
@@ -242,3 +248,17 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+fixtures = [
+	{
+		"doctype": "Custom Field",
+		"filters": [
+			["name", "in", ["Bank Transaction-unique_key"]]
+		]
+	},
+	{
+		"doctype": "List View Settings",
+		"filters": [
+			["name", "in", ["Moldova Bank Statement Import"]]
+		]
+	},
+]
