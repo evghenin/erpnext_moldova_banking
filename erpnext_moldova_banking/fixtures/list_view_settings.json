@@ -1,0 +1,16 @@
+[
+ {
+  "allow_edit": 0,
+  "disable_auto_refresh": 0,
+  "disable_automatic_recency_filters": 0,
+  "disable_comment_count": 0,
+  "disable_count": 0,
+  "disable_sidebar_stats": 0,
+  "docstatus": 0,
+  "doctype": "List View Settings",
+  "fields": "[{\"label\":\"ID\",\"fieldname\":\"name\"},{\"label\":\"Status\",\"fieldname\":\"status\"},{\"label\":\"Company\",\"fieldname\":\"company\"},{\"label\":\"Bank Account\",\"fieldname\":\"bank_account\"}]",
+  "modified": "2025-12-07 18:07:12.875202",
+  "name": "Moldova Bank Statement Import",
+  "total_fields": "5"
+ }
+]
