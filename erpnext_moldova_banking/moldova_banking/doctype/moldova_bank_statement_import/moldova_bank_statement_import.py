@@ -119,6 +119,10 @@ def convert_dbo_to_csv(data_import, dbo_file_path):
 	if not is_dbo:
 		frappe.throw(_("The uploaded file does not appear to be in valid DBO format."))
 
+	has_account_info = has_account_info(content)
+	if not has_account_info:
+		frappe.throw(_("The uploaded file does not include account info (daily turnover)."))
+
 	if is_dbo and not doc.import_dbo_fromat:
 		frappe.throw(_("DBO file detected. Please enable 'Import DBO Format' to proceed."))
 
@@ -229,6 +233,10 @@ def is_dbo_format(content: str) -> bool:
 	required_tags = ["DocStart", "DocEnd", "BEGINDATE", "ENDDATE"]
 	return all(tag in content for tag in required_tags)
 
+def has_account_info(content: str) -> bool:
+	"""Check if the content has key DBO tags"""
+	required_tags = ["SECTIONACCOUNTSTART","SECTIONACCOUNTSTOP"]
+	return all(tag in content for tag in required_tags)
 
 def parse_data_from_template(raw_data):
 	data = []
