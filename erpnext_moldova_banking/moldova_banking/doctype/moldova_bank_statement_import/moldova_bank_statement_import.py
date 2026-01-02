@@ -119,8 +119,8 @@ def convert_dbo_to_csv(data_import, dbo_file_path):
 	if not is_dbo:
 		frappe.throw(_("The uploaded file does not appear to be in valid DBO format."))
 
-	has_account_info = has_account_info(content)
-	if not has_account_info:
+	has_account = has_account_info(content)
+	if not has_account:
 		frappe.throw(_("The uploaded file does not include account info (daily turnover)."))
 
 	if is_dbo and not doc.import_dbo_fromat:
