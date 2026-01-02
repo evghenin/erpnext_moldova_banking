@@ -6,7 +6,7 @@ import csv
 import io
 import json
 import re
-from datetime import date, datetime
+from datetime import datetime
 
 import frappe
 import openpyxl
@@ -422,14 +422,23 @@ def upload_bank_statement(**args):
 	return bsi
 
 def parse_date(value: str):
-    """Parse date in DD.MM.YYYY format into python date."""
-	
-    from frappe.utils import getdate
-
+    """Parse date strictly in DD.MM.YYYY format."""
     value = (value or "").strip()
     if not value:
         return None
-    return getdate(value)
+
+    try:
+        return datetime.strptime(value, "%d.%m.%Y").date()
+    except ValueError:
+        # fallback — на случай если банк вдруг прислал ISO
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            frappe.log_error(
+                title="Invalid date format in DBO import",
+                message=f"Unrecognized date format: {value}",
+            )
+            return None
 
 def parse_dbo(content: str):
     """Parse DBO formatted bank statement content into transactions."""
