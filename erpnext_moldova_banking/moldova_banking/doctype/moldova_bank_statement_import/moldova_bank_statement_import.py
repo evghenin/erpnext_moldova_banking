@@ -226,7 +226,7 @@ def download_import_log(data_import_name):
 
 def is_dbo_format(content: str) -> bool:
 	"""Check if the content has key DBO tags"""
-	required_tags = ["DocStart", "DocEnd", "BEGINDATE", "ENDDATE","SECTIONACCOUNTSTART","SECTIONACCOUNTSTOP"]
+	required_tags = ["DocStart", "DocEnd", "BEGINDATE", "ENDDATE"]
 	return all(tag in content for tag in required_tags)
 
 
