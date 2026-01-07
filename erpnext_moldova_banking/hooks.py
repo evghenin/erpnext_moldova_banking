@@ -147,7 +147,8 @@ app_license = "mit"
 
 doc_events = {
 	"Bank Transaction": {
-		"before_insert": "erpnext_moldova_banking.utils.bank_transaction_unique_key.ensure_unique_transaction"
+		"before_insert": "erpnext_moldova_banking.utils.bank_transaction_unique_key.ensure_unique_transaction",
+        "on_submit": "erpnext_moldova_banking.utils.pos_autocreate.handle_bank_transaction",
 	}
 }
 
