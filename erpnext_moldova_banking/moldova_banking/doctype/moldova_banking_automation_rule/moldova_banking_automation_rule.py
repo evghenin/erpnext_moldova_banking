@@ -5,5 +5,5 @@
 from frappe.model.document import Document
 
 
-class MoldovaBankingPOSClearingRule(Document):
+class MoldovaBankingAutomationRule(Document):
 	pass

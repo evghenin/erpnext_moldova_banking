@@ -2,214 +2,225 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Moldova Bank Statement Import", {
-	onload(frm) {
-		frm.set_query("bank_account", function (doc) {
-			return {
-				filters: {
-					company: doc.company,
-				},
-			};
-		});
-	},
+    onload(frm) {
+        // Restrict bank account query to the selected company
+        frm.set_query("bank_account", function (doc) {
+            return {
+                filters: {
+                    company: doc.company,
+                },
+            };
+        });
+    },
 
-	setup(frm) {
-		frappe.realtime.on("data_import_refresh", ({ data_import }) => {
-			frm.import_in_progress = false;
-			if (data_import !== frm.doc.name) return;
-			frappe.model.clear_doc("Moldova Bank Statement Import", frm.doc.name);
-			frappe.model.with_doc("Moldova Bank Statement Import", frm.doc.name).then(() => {
-				frm.refresh();
-			});
-		});
-		frappe.realtime.on("data_import_progress", (data) => {
-			frm.import_in_progress = true;
-			if (data.data_import !== frm.doc.name) {
-				return;
-			}
-			let percent = Math.floor((data.current * 100) / data.total);
-			let seconds = Math.floor(data.eta);
-			let minutes = Math.floor(data.eta / 60);
-			let eta_message =
-				// prettier-ignore
-				seconds < 60
-					? __('About {0} seconds remaining', [seconds])
-					: minutes === 1
-						? __('About {0} minute remaining', [minutes])
-						: __('About {0} minutes remaining', [minutes]);
+    setup(frm) {
+        // Listen for realtime events during import
+        frappe.realtime.on("data_import_refresh", ({ data_import }) => {
+            frm.import_in_progress = false;
+            if (data_import !== frm.doc.name) return;
+            frappe.model.clear_doc("Moldova Bank Statement Import", frm.doc.name);
+            frappe.model.with_doc("Moldova Bank Statement Import", frm.doc.name).then(() => {
+                frm.refresh();
+            });
+        });
 
-			let message;
-			if (data.success) {
-				let message_args = [data.current, data.total, eta_message];
-				message =
-					frm.doc.import_type === "Insert New Records"
-						? __("Importing {0} of {1}, {2}", message_args)
-						: __("Updating {0} of {1}, {2}", message_args);
-			}
-			if (data.skipping) {
-				message = __("Skipping {0} of {1}, {2}", [data.current, data.total, eta_message]);
-			}
-			frm.dashboard.show_progress(__("Import Progress"), percent, message);
-			frm.page.set_indicator(__("In Progress"), "orange");
+        frappe.realtime.on("data_import_progress", (data) => {
+            frm.import_in_progress = true;
+            if (data.data_import !== frm.doc.name) return;
 
-			// hide progress when complete
-			if (data.current === data.total) {
-				setTimeout(() => {
-					frm.dashboard.hide();
-					frm.refresh();
-				}, 2000);
-			}
-		});
+            let percent = Math.floor((data.current * 100) / data.total);
+            let seconds = Math.floor(data.eta);
+            let minutes = Math.floor(data.eta / 60);
 
-		frm.set_query("reference_doctype", () => {
-			return {
-				filters: {
-					name: ["in", frappe.boot.user.can_import],
-				},
-			};
-		});
+            // ETA message formatting
+            let eta_message =
+                seconds < 60
+                    ? __('About {0} seconds remaining', [seconds])
+                    : minutes === 1
+                        ? __('About {0} minute remaining', [minutes])
+                        : __('About {0} minutes remaining', [minutes]);
 
-		frm.get_field("import_file").df.options = {
-			restrictions: {
-				allowed_file_types: [".csv", ".xls", ".xlsx", ".TXT", ".txt"],
-			},
-		};
+            let message;
+            if (data.success) {
+                let message_args = [data.current, data.total, eta_message];
+                message =
+                    frm.doc.import_type === "Insert New Records"
+                        ? __("Importing {0} of {1}, {2}", message_args)
+                        : __("Updating {0} of {1}, {2}", message_args);
+            }
+            if (data.skipping) {
+                message = __("Skipping {0} of {1}, {2}", [data.current, data.total, eta_message]);
+            }
 
-		frm.has_import_file = () => {
-			return frm.doc.import_file || frm.doc.google_sheets_url;
-		};
-	},
+            frm.dashboard.show_progress(__("Import Progress"), percent, message);
+            frm.page.set_indicator(__("In Progress"), "orange");
 
-	refresh(frm) {
-		frm.page.hide_icon_group();
-		frm.trigger("toggle_dbo_note");
-		frm.trigger("update_indicators");
-		frm.trigger("import_file");
-		frm.trigger("show_import_log");
-		frm.trigger("show_import_warnings");
-		frm.trigger("toggle_submit_after_import");
-		frm.trigger("show_import_status");
-		frm.trigger("show_report_error_button");
+            // Hide progress when complete
+            if (data.current === data.total) {
+                setTimeout(() => {
+                    frm.dashboard.hide();
+                    frm.refresh();
+                }, 2000);
+            }
+        });
 
-		if (frm.doc.status === "Partial Success") {
-			frm.add_custom_button(__("Export Errored Rows"), () => frm.trigger("export_errored_rows"));
-		}
+        // Restrict reference doctype to those user can import
+        frm.set_query("reference_doctype", () => {
+            return {
+                filters: {
+                    name: ["in", frappe.boot.user.can_import],
+                },
+            };
+        });
 
-		if (frm.doc.status.includes("Success")) {
-			frm.add_custom_button(__("Go to {0} List", [__(frm.doc.reference_doctype)]), () =>
-				frappe.set_route("List", frm.doc.reference_doctype)
-			);
-		}
-	},
+        // Restrict file types allowed for import
+        frm.get_field("import_file").df.options = {
+            restrictions: {
+                allowed_file_types: [".csv", ".xls", ".xlsx", ".TXT", ".txt"],
+            },
+        };
 
-	onload_post_render(frm) {
-		frm.trigger("update_primary_action");
-	},
+        // Helper: check if import file exists
+        frm.has_import_file = () => {
+            return frm.doc.import_file || frm.doc.google_sheets_url;
+        };
+    },
 
-	update_primary_action(frm) {
-		if (frm.is_dirty()) {
-			frm.enable_save();
-			return;
-		}
-		frm.disable_save();
-		if (frm.doc.status !== "Success") {
-			if (!frm.is_new() && frm.has_import_file()) {
-				let label = frm.doc.status === "Pending" ? __("Start Import") : __("Retry");
-				frm.page.set_primary_action(label, () => frm.events.start_import(frm));
-			} else {
-				frm.page.set_primary_action(__("Save"), () => frm.save());
-			}
-		}
-	},
+    refresh(frm) {
+        frm.page.hide_icon_group();
+        frm.trigger("toggle_dbo_note");
+        frm.trigger("update_indicators");
+        frm.trigger("import_file");
+        frm.trigger("show_import_log");
+        frm.trigger("show_import_warnings");
+        frm.trigger("toggle_submit_after_import");
+        frm.trigger("show_import_status");
+        frm.trigger("show_report_error_button");
 
-	update_indicators(frm) {
-		const indicator = frappe.get_indicator(frm.doc);
-		if (indicator) {
-			frm.page.set_indicator(indicator[0], indicator[1]);
-		} else {
-			frm.page.clear_indicator();
-		}
-	},
+        if (frm.doc.status === "Partial Success") {
+            frm.add_custom_button(__("Export Errored Rows"), () => frm.trigger("export_errored_rows"));
+        }
 
-	show_import_status(frm) {
-		if (frm.doc.status == "Pending") return;
+        if (frm.doc.status.includes("Success")) {
+            frm.add_custom_button(__("Go to {0} List", [__(frm.doc.reference_doctype)]), () =>
+                frappe.set_route("List", frm.doc.reference_doctype)
+            );
+        }
+    },
 
-		frappe.call({
-			method: "erpnext_moldova_banking.moldova_banking.doctype.moldova_bank_statement_import.moldova_bank_statement_import.get_import_status",
-			args: {
-				docname: frm.doc.name,
-			},
-			callback: function (r) {
-				let successful_records = cint(r.message.success);
-				let failed_records = cint(r.message.failed);
-				let total_records = cint(r.message.total_records);
+    onload_post_render(frm) {
+        frm.trigger("update_primary_action");
+    },
 
-				if (!total_records) {
-					return;
-				}
+    update_primary_action(frm) {
+        if (frm.is_dirty()) {
+            frm.enable_save();
+            return;
+        }
+        frm.disable_save();
+        if (frm.doc.status !== "Success") {
+            if (!frm.is_new() && frm.has_import_file()) {
+                let label = frm.doc.status === "Pending" ? __("Start Import") : __("Retry");
+                frm.page.set_primary_action(label, () => frm.events.start_import(frm));
+            } else {
+                frm.page.set_primary_action(__("Save"), () => frm.save());
+            }
+        }
+    },
 
-				let message;
-				if (failed_records === 0) {
-					let message_args = [successful_records];
-					if (frm.doc.import_type === "Insert New Records") {
-						message =
-							successful_records > 1
-								? __("Successfully imported {0} records.", message_args)
-								: __("Successfully imported {0} record.", message_args);
-					} else {
-						message =
-							successful_records > 1
-								? __("Successfully updated {0} records.", message_args)
-								: __("Successfully updated {0} record.", message_args);
-					}
-				} else {
-					let message_args = [successful_records, total_records];
-					if (frm.doc.import_type === "Insert New Records") {
-						message =
-							successful_records > 1
-								? __(
-										"Successfully imported {0} records out of {1}. Click on Export Errored Rows, fix the errors and import again.",
-										message_args
-								  )
-								: __(
-										"Successfully imported {0} record out of {1}. Click on Export Errored Rows, fix the errors and import again.",
-										message_args
-								  );
-					} else {
-						message =
-							successful_records > 1
-								? __(
-										"Successfully updated {0} records out of {1}. Click on Export Errored Rows, fix the errors and import again.",
-										message_args
-								  )
-								: __(
-										"Successfully updated {0} record out of {1}. Click on Export Errored Rows, fix the errors and import again.",
-										message_args
-								  );
-					}
-				}
+    update_indicators(frm) {
+        const indicator = frappe.get_indicator(frm.doc);
+        if (indicator) {
+            frm.page.set_indicator(indicator[0], indicator[1]);
+        } else {
+            frm.page.clear_indicator();
+        }
+    },
 
-				frm.dashboard.set_headline(message);
-			},
-		});
-	},
+    show_import_status(frm) {
+        if (frm.doc.status == "Pending") return;
 
-	import_dbo_fromat(frm) {
-		frm.trigger("toggle_dbo_note");
-		frm.save();
-	},
+        frappe.call({
+            method: "erpnext_moldova_banking.moldova_banking.doctype.moldova_bank_statement_import.moldova_bank_statement_import.get_import_status",
+            args: { docname: frm.doc.name },
+            callback: function (r) {
+                let successful_records = cint(r.message.success);
+                let failed_records = cint(r.message.failed);
+                let total_records = cint(r.message.total_records);
 
-	toggle_dbo_note(frm) {
-		if (!frm.doc.import_dbo_fromat) {
-			frm.set_df_property("custom_delimiters", "hidden", 0);
-			frm.set_df_property("google_sheets_url", "hidden", 0);
-			frm.set_df_property("html_5", "hidden", 0);
-		} else {
-			frm.set_df_property("custom_delimiters", "hidden", 1);
-			frm.set_df_property("google_sheets_url", "hidden", 1);
-			frm.set_df_property("html_5", "hidden", 1);
-		}
-		frm.set_value("import_dbo_fromat", frm.doc.import_dbo_fromat);
-	},
+                if (!total_records) return;
+
+                let message;
+                if (failed_records === 0) {
+                    let message_args = [successful_records];
+                    if (frm.doc.import_type === "Insert New Records") {
+                        message =
+                            successful_records > 1
+                                ? __("Successfully imported {0} records.", message_args)
+                                : __("Successfully imported {0} record.", message_args);
+                    } else {
+                        message =
+                            successful_records > 1
+                                ? __("Successfully updated {0} records.", message_args)
+                                : __("Successfully updated {0} record.", message_args);
+                    }
+                } else {
+                    let message_args = [successful_records, total_records];
+                    if (frm.doc.import_type === "Insert New Records") {
+                        message =
+                            successful_records > 1
+                                ? __(
+                                    "Successfully imported {0} records out of {1}. Click on Export Errored Rows, fix the errors and import again.",
+                                    message_args
+                                )
+                                : __(
+                                    "Successfully imported {0} record out of {1}. Click on Export Errored Rows, fix the errors and import again.",
+                                    message_args
+                                );
+                    } else {
+                        message =
+                            successful_records > 1
+                                ? __(
+                                    "Successfully updated {0} records out of {1}. Click on Export Errored Rows, fix the errors and import again.",
+                                    message_args
+                                )
+                                : __(
+                                    "Successfully updated {0} record out of {1}. Click on Export Errored Rows, fix the errors and import again.",
+                                    message_args
+                                );
+                    }
+                }
+
+                frm.dashboard.set_headline(message);
+            },
+        });
+    },
+
+    // ✅ Modified handler: no auto-save, directly triggers conversion/preview
+    import_dbo_fromat(frm) {
+        frm.trigger("toggle_dbo_note");
+
+        // If TXT file is already uploaded, trigger conversion immediately
+        if (frm.doc.import_file && frm.doc.import_file.toLowerCase().endsWith(".txt")) {
+            frm.trigger("import_file");
+        } else {
+            // Otherwise just refresh primary action buttons
+            frm.trigger("update_primary_action");
+        }
+    },
+
+    toggle_dbo_note(frm) {
+        if (!frm.doc.import_dbo_fromat) {
+            frm.set_df_property("custom_delimiters", "hidden", 0);
+            frm.set_df_property("google_sheets_url", "hidden", 0);
+            frm.set_df_property("html_5", "hidden", 0);
+        } else {
+            frm.set_df_property("custom_delimiters", "hidden", 1);
+            frm.set_df_property("google_sheets_url", "hidden", 1);
+            frm.set_df_property("html_5", "hidden", 1);
+        }
+        frm.set_value("import_dbo_fromat", frm.doc.import_dbo_fromat);
+    },
 
 	show_report_error_button(frm) {
 		if (frm.doc.status === "Error") {

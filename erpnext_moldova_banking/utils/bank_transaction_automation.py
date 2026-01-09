@@ -1,3 +1,4 @@
+from pydoc import doc
 import frappe
 from frappe.utils import flt
 
@@ -21,11 +22,7 @@ def handle_bank_transaction(doc, method=None):
     # 1. Load settings
     settings = frappe.get_single("Moldova Banking Settings")
 
-    if not settings.pos_autocreate_enable:
-        return
-
-    # This handler is currently intended for POS deposits only
-    if not doc.deposit:
+    if not settings.enable_automation:
         return
 
     # Defensive checks
@@ -35,7 +32,7 @@ def handle_bank_transaction(doc, method=None):
     normalized_description = normalize_string(doc.description)
 
     # 2. Iterate over enabled clearing rules
-    for rule in settings.pos_clearing_rules:
+    for rule in settings.automation_rules:
         if rule.disabled:
             continue
 
@@ -43,15 +40,15 @@ def handle_bank_transaction(doc, method=None):
         if rule.company != doc.company:
             continue
 
-        bank_account = frappe.get_doc("Bank Account", doc.bank_account)
-        if rule.bank != bank_account.bank:
+        ba = frappe.get_doc("Bank Account", doc.bank_account)
+        if rule.bank != ba.bank:
             continue
 
-        account = frappe.get_doc("Account", bank_account.account)
-        clearing_account = frappe.get_doc("Account", rule.clearing_account)
+        ba_account = frappe.get_doc("Account", ba.account)
+        ar_account = frappe.get_doc("Account", rule.account)
 
         # Currency guard
-        if account.account_currency != clearing_account.account_currency:
+        if ba_account.account_currency != ar_account.account_currency:
             continue
 
         if not rule.description_pattern:
@@ -70,32 +67,50 @@ def handle_bank_transaction(doc, method=None):
             continue
 
         # 6. Match found → create Payment Entry
-        create_payment_entry_from_transaction(settings, doc, rule, bank_account, account, clearing_account)
+        create_payment_entry_from_transaction(settings, doc, rule, ba_account, ar_account)
 
         # One transaction → one rule → one PE
         break
 
 
-def create_payment_entry_from_transaction(settings, transaction, rule, bank_account, account, clearing_account):
+def create_payment_entry_from_transaction(settings, transaction, rule, ba_account, ra_account):
     """
-    Create Payment Entry from Bank Transaction using clearing rule.
+    Create Payment Entry from Bank Transaction using Automation Rule.
     """
 
     pe = frappe.new_doc("Payment Entry")
     pe.company = transaction.company
     pe.payment_type = "Internal Transfer"
     pe.posting_date = transaction.date
-    pe.mode_of_payment = settings.pos_clearing_mode_of_payment
-    pe.paid_from = clearing_account.name
-    pe.paid_from_account_currency = clearing_account.account_currency
-    pe.paid_to = account.name
-    pe.paid_to_account_currency = account.account_currency
+    pe.mode_of_payment = settings.automation_pe_mode_of_payment
+    
     pe.reference_no = transaction.reference_number
     pe.reference_date = transaction.date
 
-    amount = transaction.deposit
+    if transaction.deposit:
+        pe.paid_from = ra_account.name
+        pe.paid_from_account_currency = ra_account.account_currency
+        pe.paid_to = ba_account.name
+        pe.paid_to_account_currency = ba_account.account_currency
+        amount = flt(transaction.deposit)
+    
+    else:
+        pe.paid_to = ra_account.name
+        pe.paid_to_account_currency = ra_account.account_currency
+        pe.paid_from = ba_account.name
+        pe.paid_fro_account_currency = ba_account.account_currency
+        amount = flt(transaction.withdrawal)
+    
     pe.paid_amount = amount
     pe.received_amount = amount
+
+    # Cost Center logic:
+    # - Use rule.cost_center if provided
+    # - Otherwise fallback to Company default Cost Center
+    pe.cost_center = (
+        rule.cost_center
+        or frappe.get_cached_value("Company", pe.company, "cost_center")
+    )
 
     # Avoid duplicate Payment Entries (best-effort guard)
     if frappe.db.exists(
@@ -113,7 +128,7 @@ def create_payment_entry_from_transaction(settings, transaction, rule, bank_acco
 
     # Submit PE safely
     try:
-        if settings.pos_autosubmit_payment_entry:
+        if settings.automation_pe_submit:
             pe.submit()
     except Exception:
         # Log error but do NOT reconcile
@@ -125,8 +140,8 @@ def create_payment_entry_from_transaction(settings, transaction, rule, bank_acco
 
     # Reconcile only if PE is submitted and auto-reconcile enabled
     if (
-        settings.pos_autosubmit_payment_entry
-        and settings.pos_autoreconcile_payment_entry
+        settings.automation_pe_submit
+        and settings.automation_autoreconcile
         and pe.docstatus == 1
     ):
         reconcile_pe_and_bt(pe, transaction)
@@ -172,7 +187,7 @@ def reconcile_pe_and_bt(payment_entry, bank_transaction):
         ):
             return
 
-    allocated_amount = flt(bt.deposit or bt.withdrawal or pe.received_amount or pe.paid_amount)
+    allocated_amount = flt(bt.deposit or bt.withdrawal)
 
     # Append reconciliation row (standard ERPNext v15 fieldnames)
     bt.append(
@@ -191,3 +206,11 @@ def reconcile_pe_and_bt(payment_entry, bank_transaction):
         pass
 
     bt.save(ignore_permissions=True)
+
+    frappe.publish_realtime(
+        event="bank_transaction_reload",
+        message={
+            "doctype": bt.doctype,
+            "name": bt.name,
+        }
+    )

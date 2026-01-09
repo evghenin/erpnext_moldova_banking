@@ -9,14 +9,14 @@
   "company_idno_field",
   "customer_idno_field",
   "supplier_idno_field",
-  "maib_tab",
-  "pos_autocreate_enable",
-  "pos_clearing_mode_of_payment",
+  "automation",
+  "enable_automation",
+  "automation_pe_mode_of_payment",
   "column_break_anal",
-  "pos_autosubmit_payment_entry",
-  "pos_autoreconcile_payment_entry",
-  "pos_clearing_section",
-  "pos_clearing_rules"
+  "automation_pe_submit",
+  "automation_autoreconcile",
+  "rules_section",
+  "automation_rules"
  ],
  "fields": [
   {
@@ -49,31 +49,19 @@
    "reqd": 1
   },
   {
-   "fieldname": "maib_tab",
-   "fieldtype": "Tab Break",
-   "label": "POS Clearing"
-  },
-  {
-   "fieldname": "pos_clearing_section",
-   "fieldtype": "Section Break"
+   "fieldname": "column_break_anal",
+   "fieldtype": "Column Break"
   },
   {
    "default": "0",
-   "description": "When enabled, a Payment Entry is automatically created upon submission of a Bank Transaction matching the configured POS clearing rules.",
-   "fieldname": "pos_autocreate_enable",
+   "description": "When enabled, a Payment Entry is automatically created upon submission of a Bank Transaction matching the configured rules.",
+   "fieldname": "enable_automation",
    "fieldtype": "Check",
-   "label": "Enable POS Bank Transaction Auto-Clearing"
-  },
-  {
-   "fieldname": "pos_clearing_rules",
-   "fieldtype": "Table",
-   "label": "Clearing Rules",
-   "mandatory_depends_on": "eval:doc.pos_autocreate_enable",
-   "options": "Moldova Banking POS Clearing Rule"
+   "label": "Enable Bank Transaction Automation"
   },
   {
    "description": "Mode of Payment used for automatically created Payment Entries (e.g. \u201cWire Transfer\u201d).",
-   "fieldname": "pos_clearing_mode_of_payment",
+   "fieldname": "automation_pe_mode_of_payment",
    "fieldtype": "Link",
    "label": "Mode of Payment",
    "mandatory_depends_on": "eval:doc.pos_autocreate_enable",
@@ -82,27 +70,38 @@
   {
    "default": "0",
    "description": "When enabled, the automatically created Payment Entry is submitted immediately.<br>When disabled, it is saved as Draft for review.",
-   "fieldname": "pos_autosubmit_payment_entry",
+   "fieldname": "automation_pe_submit",
    "fieldtype": "Check",
    "label": "Automatically Submit Payment Entry"
   },
   {
    "default": "0",
    "description": "When enabled, the automatically created Payment Entry is reconciled with the originating Bank Transaction after submission.\n<br>This option requires \u201cAutomatically Submit Payment Entry\u201d to be enabled.\n<br>It is recommended to enable this option only after manually processing several transactions end-to-end to verify that all related settings are correctly configured and to avoid reconciliation errors.",
-   "fieldname": "pos_autoreconcile_payment_entry",
+   "fieldname": "automation_autoreconcile",
    "fieldtype": "Check",
    "label": "Automatically Reconcile Payment Entry and Bank Transaction"
   },
   {
-   "fieldname": "column_break_anal",
-   "fieldtype": "Column Break"
+   "fieldname": "automation_rules",
+   "fieldtype": "Table",
+   "label": "Rules",
+   "options": "Moldova Banking Automation Rule"
+  },
+  {
+   "fieldname": "automation",
+   "fieldtype": "Tab Break",
+   "label": "Automation"
+  },
+  {
+   "fieldname": "rules_section",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-08 01:36:10.269927",
+ "modified": "2026-01-08 10:48:03.558839",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",

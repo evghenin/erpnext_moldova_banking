@@ -48,6 +48,10 @@ app_license = "mit"
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
+doctype_js = {
+    "Bank Transaction": "public/js/bank_transaction.js"
+}
+
 # Svg Icons
 # ------------------
 # include app icons in desk
@@ -148,7 +152,7 @@ app_license = "mit"
 doc_events = {
 	"Bank Transaction": {
 		"before_insert": "erpnext_moldova_banking.utils.bank_transaction_unique_key.ensure_unique_transaction",
-        "on_submit": "erpnext_moldova_banking.utils.pos_autocreate.handle_bank_transaction",
+        "on_submit": "erpnext_moldova_banking.utils.bank_transaction_automation.handle_bank_transaction",
 	}
 }
 

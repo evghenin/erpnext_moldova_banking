@@ -1,0 +1,88 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-01-07 23:17:26.820800",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "disabled",
+  "company",
+  "bank",
+  "account",
+  "description_pattern",
+  "cost_center",
+  "column_break_yjjl",
+  "description_pattern_help"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Bank",
+   "options": "Bank",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description_pattern",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Transaction Description Pattern",
+   "reqd": 1
+  },
+  {
+   "description": "Account used for automated postings: credited for incoming bank transactions and debited for outgoing ones.",
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Account",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "description": "Cost Center used when the selected account is a Profit and Loss account. If left empty, the company\u2019s default Cost Center will be applied automatically.",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "column_break_yjjl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description_pattern_help",
+   "fieldtype": "HTML",
+   "options": "<table class=\"table\">\n<thead>\n<tr>\n<th>Bank</th>\n<th>Description Pattern</th>\n</tr>\n</thead>\n<tbody><tr>\n<td rowspan=\"3\">MAIB</td>\n<td>Transfer pentru operatiuni de acceptare a cardurilor</td>\n</tr>\n<tr>\n<td>Retinerea comisionului-operatiunile acceptare card</td>\n</tr>\n<tr>\n<td>Comision la plata</td>\n</tr>\n</tbody></table>"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-01-09 00:59:17.794821",
+ "modified_by": "Administrator",
+ "module": "Moldova Banking",
+ "name": "Moldova Banking Automation Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
