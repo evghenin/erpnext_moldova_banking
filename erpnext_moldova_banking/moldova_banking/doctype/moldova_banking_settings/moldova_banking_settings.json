@@ -16,7 +16,12 @@
   "automation_pe_submit",
   "automation_autoreconcile",
   "rules_section",
-  "automation_rules"
+  "automation_rules",
+  "excnage_rates_tab",
+  "bnm_rates_section",
+  "bnm_rates_key",
+  "regenerate_bnm_rates_key",
+  "configure_currency_exchange_bnm"
  ],
  "fields": [
   {
@@ -95,13 +100,43 @@
   {
    "fieldname": "rules_section",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "excnage_rates_tab",
+   "fieldtype": "Tab Break",
+   "label": "Excnage Rates"
+  },
+  {
+   "fieldname": "bnm_rates_section",
+   "fieldtype": "Section Break",
+   "label": "BNM Rates"
+  },
+  {
+   "description": "Generates a new random API Security Key and replaces the current one. If the BNM rate endpoint is already configured in Currency Exchange Settings, the \"key\" parameter value will be updated automatically; otherwise, you must update it manually.",
+   "fieldname": "regenerate_bnm_rates_key",
+   "fieldtype": "Button",
+   "label": "Generate New API Security Key"
+  },
+  {
+   "description": "Creates or updates the ERPNext \"Currency Exchange Settings\" to use the BNM rate endpoint from this app, including the correct API URL and required parameters.",
+   "fieldname": "configure_currency_exchange_bnm",
+   "fieldtype": "Button",
+   "label": "Configure Currency Exchange Settings"
+  },
+  {
+   "description": "Shared secret used to protect the BNM exchange-rate API endpoint. Provide this key as the key parameter in the Currency Exchange Settings API URL. Requests with a missing or incorrect key are rejected.",
+   "fieldname": "bnm_rates_key",
+   "fieldtype": "Data",
+   "label": "API Security Key",
+   "read_only": 1,
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-08 10:48:03.558839",
+ "modified": "2026-01-18 01:51:20.979085",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",
