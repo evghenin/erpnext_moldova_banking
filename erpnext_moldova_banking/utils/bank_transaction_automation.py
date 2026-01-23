@@ -176,6 +176,7 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
     je.mode_of_payment = settings.automation_mode_of_payment
 
     amount = flt(transaction.deposit or transaction.withdrawal)
+    company = frappe.get_doc("Company", transaction.company)
 
     # Debit / Credit lines
     if transaction.deposit:
@@ -194,6 +195,7 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
                 "account": second_account.name,
                 "credit_in_account_currency": amount,
                 "account_currency": second_account.account_currency,
+                "cost_center": rule.cost_center or company.cost_center,
             }
         
         if je.voucher_type == "Bank Entry" and transaction.party_type and transaction.party:
@@ -219,6 +221,7 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
                 "account": second_account.name,
                 "debit_in_account_currency": amount,
                 "account_currency": second_account.account_currency,
+                "cost_center": rule.cost_center or company.cost_center,
             }
         
         # if je.voucher_type == "Bank Entry" and transaction.party_type and transaction.party:
