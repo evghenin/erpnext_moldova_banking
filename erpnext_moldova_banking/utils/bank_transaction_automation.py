@@ -233,17 +233,6 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
             row,
         )
 
-    # Avoid duplicate Journal Entries (best-effort guard)
-    if frappe.db.exists(
-        "Journal Entry",
-        {
-            "cheque_no": je.cheque_no,
-            "cheque_date": je.cheque_date,
-            "company": je.company,
-        },
-    ):
-        return
-
     # Create JE safely
     try:
         je.insert(ignore_permissions=True)
