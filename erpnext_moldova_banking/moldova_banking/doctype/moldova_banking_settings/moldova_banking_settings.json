@@ -11,9 +11,9 @@
   "supplier_idno_field",
   "automation",
   "enable_automation",
-  "automation_pe_mode_of_payment",
+  "automation_mode_of_payment",
   "column_break_anal",
-  "automation_pe_submit",
+  "automation_submit",
   "automation_autoreconcile",
   "rules_section",
   "automation_rules",
@@ -65,26 +65,11 @@
    "label": "Enable Bank Transaction Automation"
   },
   {
-   "description": "Mode of Payment used for automatically created Payment Entries (e.g. \u201cWire Transfer\u201d).",
-   "fieldname": "automation_pe_mode_of_payment",
-   "fieldtype": "Link",
-   "label": "Mode of Payment",
-   "mandatory_depends_on": "eval:doc.pos_autocreate_enable",
-   "options": "Mode of Payment"
-  },
-  {
    "default": "0",
-   "description": "When enabled, the automatically created Payment Entry is submitted immediately.<br>When disabled, it is saved as Draft for review.",
-   "fieldname": "automation_pe_submit",
-   "fieldtype": "Check",
-   "label": "Automatically Submit Payment Entry"
-  },
-  {
-   "default": "0",
-   "description": "When enabled, the automatically created Payment Entry is reconciled with the originating Bank Transaction after submission.\n<br>This option requires \u201cAutomatically Submit Payment Entry\u201d to be enabled.\n<br>It is recommended to enable this option only after manually processing several transactions end-to-end to verify that all related settings are correctly configured and to avoid reconciliation errors.",
+   "description": "When enabled, the automatically created Document Entry is reconciled with the originating Bank Transaction after submission.\n<br>This option requires \u201cAutomatically Submit Document Entry\u201d to be enabled.\n<br>It is recommended to enable this option only after manually processing several transactions end-to-end to verify that all related settings are correctly configured and to avoid reconciliation errors.",
    "fieldname": "automation_autoreconcile",
    "fieldtype": "Check",
-   "label": "Automatically Reconcile Payment Entry and Bank Transaction"
+   "label": "Automatically Reconcile Document Entry and Bank Transaction"
   },
   {
    "fieldname": "automation_rules",
@@ -130,13 +115,28 @@
    "label": "API Security Key",
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "description": "Mode of Payment used for automatically created Document Entries (e.g. \u201cWire Transfer\u201d).",
+   "fieldname": "automation_mode_of_payment",
+   "fieldtype": "Link",
+   "label": "Mode of Payment",
+   "mandatory_depends_on": "eval:doc.pos_autocreate_enable",
+   "options": "Mode of Payment"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, the automatically created Document Entry is submitted immediately.<br>When disabled, it is saved as Draft for review.",
+   "fieldname": "automation_submit",
+   "fieldtype": "Check",
+   "label": "Automatically Submit Document Entry"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-18 01:51:20.979085",
+ "modified": "2026-01-23 00:47:03.741657",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",

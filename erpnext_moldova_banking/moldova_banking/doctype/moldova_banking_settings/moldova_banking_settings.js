@@ -1,8 +1,8 @@
 // ERPNext v15 – Moldova Banking Settings (FINAL FIX)
 // Child table behavior for automation_rules:
-// - `account` and `cost_center` is disabled until `company` is selected
-// - `account` and `cost_center` are cleared whenever `company` is changed or cleared
-// - `account` and `cost_center` queries are filtered by selected `company`
+// - `second_account` and `cost_center` is disabled until `company` is selected
+// - `second_account` and `cost_center` are cleared whenever `company` is changed or cleared
+// - `second_account` and `cost_center` queries are filtered by selected `company`
 //
 // NOTE: The child DocType name may vary depending on your setup.
 // We bind handlers to BOTH names to ensure the logic always runs:
@@ -50,7 +50,7 @@ frappe.ui.form.on('Moldova Banking Settings', {
 });
 
 function set_automation_mop_filter(frm) {
-    frm.set_query('automation_pe_mode_of_payment', function () {
+    frm.set_query('automation_mode_of_payment', function () {
         return { filters: { type: 'Bank' } };
     });
 }
@@ -61,8 +61,8 @@ function apply_automation_rules_logic(frm) {
 
     const grid = table.grid;
 
-    // Filter account by selected company
-    grid.get_field('account').get_query = function (doc, cdt, cdn) {
+    // Filter second_account by selected company
+    grid.get_field('second_account').get_query = function (doc, cdt, cdn) {
         const row = locals[cdt][cdn];
         if (!row || !row.company) {
             return { filters: { name: '__invalid__' } };
@@ -91,7 +91,7 @@ function apply_automation_rules_logic(frm) {
 
 // Shared handlers for child rows
 function on_rule_form_render(frm, cdt, cdn) {
-    toggle_account_field(frm, cdt, cdn);
+    toggle_second_account_field(frm, cdt, cdn);
     toggle_cost_center_field(frm, cdt, cdn);
 }
 
@@ -99,19 +99,19 @@ function on_rule_company_change(frm, cdt, cdn) {
     const row = locals[cdt][cdn];
     if (!row) return;
 
-    // Requirement: if company changes OR is cleared -> account and cost_center must be cleared
-    if (row.account) {
-        frappe.model.set_value(cdt, cdn, 'account', null);
+    // Requirement: if company changes OR is cleared -> second_account and cost_center must be cleared
+    if (row.second_account) {
+        frappe.model.set_value(cdt, cdn, 'second_account', null);
     }
     if (row.cost_center) {
         frappe.model.set_value(cdt, cdn, 'cost_center', null);
     }
 
-    toggle_account_field(frm, cdt, cdn);
+    toggle_second_account_field(frm, cdt, cdn);
     toggle_cost_center_field(frm, cdt, cdn);
 }
 
-function toggle_account_field(frm, cdt, cdn) {
+function toggle_second_account_field(frm, cdt, cdn) {
     const table = frm.fields_dict.automation_rules;
     if (!table || !table.grid) return;
 
@@ -122,7 +122,7 @@ function toggle_account_field(frm, cdt, cdn) {
     const enable = !!(row && row.company);
 
     // Disable until company is selected
-    grid_row.toggle_editable('account', enable);
+    grid_row.toggle_editable('second_account', enable);
 }
 
 function toggle_cost_center_field(frm, cdt, cdn) {

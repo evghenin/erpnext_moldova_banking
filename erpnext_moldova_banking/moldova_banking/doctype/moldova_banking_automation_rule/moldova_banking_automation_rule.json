@@ -9,10 +9,13 @@
   "disabled",
   "company",
   "bank",
-  "account",
   "description_pattern",
-  "cost_center",
   "column_break_yjjl",
+  "document_type",
+  "journal_entry_type",
+  "second_account",
+  "cost_center",
+  "examples_section",
   "description_pattern_help"
  ],
  "fields": [
@@ -46,15 +49,6 @@
    "reqd": 1
   },
   {
-   "description": "Account used for automated postings: credited for incoming bank transactions and debited for outgoing ones.",
-   "fieldname": "account",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Account",
-   "options": "Account",
-   "reqd": 1
-  },
-  {
    "description": "Cost Center used when the selected account is a Profit and Loss account. If left empty, the company\u2019s default Cost Center will be applied automatically.",
    "fieldname": "cost_center",
    "fieldtype": "Link",
@@ -68,20 +62,52 @@
   {
    "fieldname": "description_pattern_help",
    "fieldtype": "HTML",
-   "options": "<table class=\"table\">\n<thead>\n<tr>\n<th>Bank</th>\n<th>Description Pattern</th>\n</tr>\n</thead>\n<tbody><tr>\n<td rowspan=\"3\">MAIB</td>\n<td>Transfer pentru operatiuni de acceptare a cardurilor</td>\n</tr>\n<tr>\n<td>Retinerea comisionului-operatiunile acceptare card</td>\n</tr>\n<tr>\n<td>Comision la plata</td>\n</tr>\n</tbody></table>"
+   "options": "<table class=\"table\">\n    <thead>\n        <tr>\n            <th>Bank</th>\n            <th>Description Pattern</th>\n            <th>Document Type</th>\n            <th>Journal Entry Type</th>\n            <th>Second Account</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr>\n            <td rowspan=\"8\">MAIB</td>\n            <td>Transfer pentru operatiuni de acceptare a cardurilor</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>1100 - Cash In Hand / 1110 - Cash</td>\n        </tr>\n        <tr>\n            <td>Incasare CDM Sucursala</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>1100 - Cash In Hand / 1110 - Cash</td>\n        </tr>\n        <tr>\n            <td>Retinerea comisionului-operatiunile acceptare card</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>5201 - Administrative Expenses</td>\n        </tr>\n        <tr>\n            <td>Comision la plata</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>5201 - Administrative Expenses</td>\n        </tr>\n        <tr>\n            <td>Com. Plati Ord.PJ Internet Banking</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>5201 - Administrative Expenses</td>\n        </tr>\n        <tr>\n            <td>Comision admin. cont curent PJ</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>5201 - Administrative Expenses</td>\n        </tr>\n        <tr>\n            <td>Comision pachet</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>5201 - Administrative Expenses</td>\n        </tr>\n        <tr>\n            <td>Comision acceptare MIA</td>\n            <td>Journal Entry</td>\n            <td>Bank Entry</td>\n            <td>5201 - Administrative Expenses</td>\n        </tr>\n    </tbody>\n</table>"
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Document Type",
+   "options": "Payment Entry\nJournal Entry",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.document_type==\"Journal Entry\"",
+   "fieldname": "journal_entry_type",
+   "fieldtype": "Select",
+   "label": "Journal Entry Type",
+   "mandatory_depends_on": "eval:doc.document_type==\"Journal Entry\"",
+   "options": "Journal Entry\nInter Company Journal Entry\nBank Entry\nCash Entry\nCredit Card Entry\nDebit Note\nCredit Note\nContra Entry\nExcise Entry\nWrite Off Entry\nOpening Entry\nDepreciation Entry\nExchange Rate Revaluation\nDeferred Revenue\nDeferred Expense"
+  },
+  {
+   "depends_on": "eval:doc.document_type==\"Journal Entry\"",
+   "description": "Second account for Journal Entry.",
+   "fieldname": "second_account",
+   "fieldtype": "Link",
+   "label": "Account",
+   "mandatory_depends_on": "eval:doc.document_type==\"Journal Entry\"",
+   "options": "Account"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "examples_section",
+   "fieldtype": "Section Break",
+   "label": "Examples"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-01-09 00:59:17.794821",
+ "modified": "2026-01-23 00:10:09.975551",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Automation Rule",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
