@@ -127,10 +127,7 @@ def convert_dbo_to_csv(data_import, dbo_file_path):
     if is_dbo and not doc.import_dbo_fromat:
         frappe.throw(_("DBO file detected. Please enable 'Import DBO Format' to proceed."))
 
-    try:
-        transactions = parse_dbo(content, doc)
-    except Exception as e:
-        frappe.throw(_("Failed to parse DBO format. Error: {0}").format(str(e)))
+    transactions = parse_dbo(content, doc)
 
     if not transactions:
         frappe.throw(_("Parsed file is not in valid DBO format or contains no transactions."))
@@ -448,14 +445,15 @@ def parse_date(value: str):
             )
             return None
 
-def parse_dbo(content: str, ba_doc):
+def parse_dbo(content: str, import_doc):
     """Parse DBO formatted bank statement content into transactions."""
     # This is a placeholder implementation. The actual parsing logic will depend on the DBO format specification.
     # For demonstration, let's assume we have a simple parser that extracts transactions based on known tags.
 
     from frappe.utils import flt
 
-    ba = frappe.get_doc("Bank Account", ba_doc.bank_account)
+    ba_doc = frappe.get_doc("Bank Account", import_doc.bank_account)
+    a_doc = frappe.get_doc("Account", ba_doc.account)
 
     lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
 
@@ -501,21 +499,25 @@ def parse_dbo(content: str, ba_doc):
         else:
             header[key] = value
 
-    account_iban = header.get(
-        "ACCOUNT",
-    )
-    
-    if account_iban and account_iban != ba.iban:        
-        frappe.throw(_("Bank Account Iban {0} is not equal to Iban from DBO file {1}").format(ba.iban, account_iban))
-
-    if not account_iban:
-        account_iban = ba.iban
-
+    account_iban = header.get("ACCOUNT")
     opening_balance = flt(header.get("STARTREST") or 0)
     closing_balance_bank = flt(header.get("STOPREST") or 0)
     begin_date_str = header.get("BEGINDATE")
     end_date_str = header.get("ENDDATE")
     currency_code = (header.get("CURRCODE") or "").strip() or None
+
+    
+    if account_iban and account_iban != ba_doc.iban:
+        frappe.throw(_("Bank Account Iban {0} is not equal to Iban from DBO file {1}").format(ba_doc.iban, account_iban))
+
+    if currency_code and currency_code != a_doc.account_currency:
+        frappe.throw(_("Account Currency {0} is not equal to Currency from DBO file {1}").format(a_doc.account_currency, currency_code))
+
+    if not account_iban:
+        account_iban = ba_doc.iban
+
+    if not currency_code:
+        currency_code = a_doc.account_currency
 
     transactions: list[dict] = []
     running_balance = opening_balance
@@ -535,6 +537,9 @@ def parse_dbo(content: str, ba_doc):
 
         payer_account = (doc.get("PAYERACCOUNT") or "").strip()
         receiver_account = (doc.get("RECEIVERACCOUNT") or "").strip()
+        
+        if account_iban not in [payer_account, receiver_account]:        
+            frappe.throw(_("DBO file contains transactions which are not belongs to the Bank Account"))
 
         payer_name = (doc.get("PAYER") or "").strip()
         receiver_name = (doc.get("RECEIVER") or "").strip()
