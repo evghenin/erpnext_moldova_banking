@@ -199,8 +199,8 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
             }
         
         if je.voucher_type == "Bank Entry" and transaction.party_type and transaction.party:
-            row.party_type = transaction.party_type
-            row.party = transaction.party
+            row["party_type"] = transaction.party_type
+            row["party"] = transaction.party
 
         je.append(
             "accounts",
