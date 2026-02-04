@@ -198,9 +198,11 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
                 "cost_center": rule.cost_center or company.cost_center,
             }
         
-        if je.voucher_type == "Bank Entry" and transaction.party_type and transaction.party:
-            row["party_type"] = transaction.party_type
-            row["party"] = transaction.party
+        if je.voucher_type == "Bank Entry" and second_account.account_type in ("Receivable", "Payable"):
+            if transaction.party_type and transaction.party:
+
+                row["party_type"] = transaction.party_type
+                row["party"] = transaction.party
 
         je.append(
             "accounts",
