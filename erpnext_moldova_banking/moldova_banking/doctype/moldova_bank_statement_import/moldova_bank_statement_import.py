@@ -448,14 +448,14 @@ def parse_date(value: str):
             )
             return None
 
-def parse_dbo(content: str, doc):
+def parse_dbo(content: str, ba_doc):
     """Parse DBO formatted bank statement content into transactions."""
     # This is a placeholder implementation. The actual parsing logic will depend on the DBO format specification.
     # For demonstration, let's assume we have a simple parser that extracts transactions based on known tags.
 
     from frappe.utils import flt
 
-    ba = frappe.get_doc("Bank Account", doc.bank_account)
+    ba = frappe.get_doc("Bank Account", ba_doc.bank_account)
 
     lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
 
@@ -489,6 +489,8 @@ def parse_dbo(content: str, doc):
         key, value = line.split("=", 1)
         key = key.strip().upper()
         value = value.strip()
+        if value == "null":
+            value = None
 
         if in_account_section:
             header[key] = value
@@ -520,8 +522,8 @@ def parse_dbo(content: str, doc):
     from_date = None
     to_date = None
 
-    desc_lines = []
     for doc in docs:
+        desc_lines = []
         # Raw fields from statement
         document_number = (doc.get("DOCUMENTNUMBER") or "").strip()
         document_date_str = (doc.get("DOCUMENTDATE") or "").strip()
