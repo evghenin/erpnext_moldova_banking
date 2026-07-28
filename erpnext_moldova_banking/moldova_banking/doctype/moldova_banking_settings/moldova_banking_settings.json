@@ -19,6 +19,7 @@
   "automation_rules",
   "maib_api_tab",
   "maib_enabled",
+  "maib_outward_payments_enabled",
   "maib_environment",
   "column_break_maib_auth",
   "maib_client_id",
@@ -111,6 +112,14 @@
    "fieldname": "maib_enabled",
    "fieldtype": "Check",
    "label": "Enable MAIB API"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.maib_enabled",
+   "description": "Allow sending Payment Orders to MAIB (ordinary transfers) and show Send to MAIB on Payment Order.",
+   "fieldname": "maib_outward_payments_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Outward Payments"
   },
   {
    "default": "Test",
