@@ -126,7 +126,7 @@ def get_bnm_rates_cached(dt: date_cls) -> Dict[str, Decimal]:
     payload = {
         "date": bnm_date,
         "rates": {k: str(v) for k, v in rates.items()},
-        "fetched_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "fetched_at": datetime.now(datetime.UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
     }
 
     _cache_set(cache_key, payload)

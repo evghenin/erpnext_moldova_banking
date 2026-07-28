@@ -286,14 +286,53 @@ def start_import(
 
 
 def update_mapping_db(bank, template_options):
-    """Update bank transaction mapping database with template options."""
-    bank = frappe.get_doc("Bank", bank)
-    for d in bank.bank_transaction_mapping:
-        d.delete()
+    """Persist import column mapping to Bank only when it actually changed.
 
-    for d in json.loads(template_options)["column_to_field_map"].items():
+    Avoids destructive wipe when template_options is missing/empty/unchanged.
+    """
+    if not template_options:
+        return
+
+    try:
+        options = (
+            json.loads(template_options)
+            if isinstance(template_options, str)
+            else template_options
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return
+
+    new_map = options.get("column_to_field_map") or {}
+    if not isinstance(new_map, dict) or not new_map:
+        return
+
+    # Drop incomplete pairs so we never persist blank mappings
+    new_map = {
+        str(file_field): bank_transaction_field
+        for file_field, bank_transaction_field in new_map.items()
+        if file_field not in (None, "") and bank_transaction_field not in (None, "")
+    }
+    if not new_map:
+        return
+
+    bank = frappe.get_doc("Bank", bank)
+    current_map = {
+        str(row.file_field): row.bank_transaction_field
+        for row in (bank.bank_transaction_mapping or [])
+        if row.file_field not in (None, "") and row.bank_transaction_field not in (None, "")
+    }
+
+    if current_map == new_map:
+        return
+
+    bank.set("bank_transaction_mapping", [])
+    for file_field, bank_transaction_field in new_map.items():
         bank.append(
-            "bank_transaction_mapping", {"bank_transaction_field": d[1], "file_field": d[0]}
+            "bank_transaction_mapping",
+            {
+                "bank_transaction_field": bank_transaction_field,
+                "file_field": file_field,
+            },
         )
 
     bank.save()
@@ -678,47 +717,8 @@ def parse_dbo(content: str, import_doc):
     return transactions
 
 def resolve_party_by_idno(tx: dict) -> tuple[str, str]:
-    """Resolve party_type and party name used in CSV based on IDNO.
-
-    This follows the same rules as ``_assign_party_by_idno`` but instead of
-    mutating a Bank Transaction document it just returns the match so that
-    we can include it when generating the CSV.
-    """
-    cp_idno = (tx.get("cp_idno") or "").strip()
-    if not cp_idno:
-        return "", ""
-
-    try:
-        settings = frappe.get_single("Moldova Banking Settings")
-    except Exception:
-        return "", ""
-
-    customer_idno_field = (getattr(settings, "customer_idno_field", None) or "").strip()
-    supplier_idno_field = (getattr(settings, "supplier_idno_field", None) or "").strip()
-
-    # Incoming payment -> Customer
-    if tx.get("deposit") and not tx.get("withdrawal") and customer_idno_field:
-        customer = frappe.get_all(
-            "Customer",
-            filters={customer_idno_field: cp_idno},
-            pluck="name",
-            limit=1,
-        )
-        if customer:
-            return "Customer", customer[0]
-
-    # Outgoing payment -> Supplier
-    if tx.get("withdrawal") and not tx.get("deposit") and supplier_idno_field:
-        supplier = frappe.get_all(
-            "Supplier",
-            filters={supplier_idno_field: cp_idno},
-            pluck="name",
-            limit=1,
-        )
-        if supplier:
-            return "Supplier", supplier[0]
-
-    return "", ""
+    from erpnext_moldova_banking.utils.party import resolve_party_by_idno as _resolve
+    return _resolve(tx)
 
 def is_iban_valid(iban_string):
     """

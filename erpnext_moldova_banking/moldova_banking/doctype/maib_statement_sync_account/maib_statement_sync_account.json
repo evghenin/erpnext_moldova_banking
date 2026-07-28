@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-29 00:50:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "disabled",
+  "bank_account",
+  "auto_submit",
+  "schedule",
+  "column_break_status",
+  "last_synced_on",
+  "last_sync_status"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Bank Account",
+   "options": "Bank Account",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_submit",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Auto Submit"
+  },
+  {
+   "default": "Manual only",
+   "fieldname": "schedule",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Schedule",
+   "options": "Manual only\nEvery 5 minutes\nEvery 10 minutes\nEvery 15 minutes\nEvery 30 minutes\nEvery hour\nEvery 6 hours\nEvery 12 hours\nDaily\nEvery weekday\nWeekly",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_synced_on",
+   "fieldtype": "Datetime",
+   "label": "Last Synced On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_sync_status",
+   "fieldtype": "Small Text",
+   "label": "Last Sync Status",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-29 00:50:00.000000",
+ "modified_by": "Administrator",
+ "module": "Moldova Banking",
+ "name": "MAIB Statement Sync Account",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

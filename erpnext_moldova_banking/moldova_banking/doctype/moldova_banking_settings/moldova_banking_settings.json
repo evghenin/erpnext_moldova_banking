@@ -17,6 +17,21 @@
   "automation_autoreconcile",
   "rules_section",
   "automation_rules",
+  "maib_api_tab",
+  "maib_enabled",
+  "maib_environment",
+  "column_break_maib_auth",
+  "maib_client_id",
+  "maib_client_secret",
+  "maib_urls_section",
+  "maib_token_url",
+  "maib_api_base_url",
+  "maib_scope",
+  "maib_actions_section",
+  "test_maib_connection",
+  "fetch_maib_statement",
+  "maib_sync_section",
+  "maib_sync_accounts",
   "excnage_rates_tab",
   "bnm_rates_section",
   "bnm_rates_key",
@@ -87,6 +102,90 @@
    "fieldtype": "Section Break"
   },
   {
+   "fieldname": "maib_api_tab",
+   "fieldtype": "Tab Break",
+   "label": "MAIB API"
+  },
+  {
+   "default": "0",
+   "fieldname": "maib_enabled",
+   "fieldtype": "Check",
+   "label": "Enable MAIB API"
+  },
+  {
+   "default": "Test",
+   "fieldname": "maib_environment",
+   "fieldtype": "Select",
+   "label": "Environment",
+   "options": "Test\nProduction"
+  },
+  {
+   "fieldname": "column_break_maib_auth",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "maib_client_id",
+   "fieldtype": "Data",
+   "label": "Client ID",
+   "mandatory_depends_on": "eval:doc.maib_enabled"
+  },
+  {
+   "fieldname": "maib_client_secret",
+   "fieldtype": "Password",
+   "label": "Client Secret",
+   "mandatory_depends_on": "eval:doc.maib_enabled"
+  },
+  {
+   "fieldname": "maib_urls_section",
+   "fieldtype": "Section Break",
+   "label": "Endpoints"
+  },
+  {
+   "description": "OAuth token URL. Leave empty to use the default for the selected environment.",
+   "fieldname": "maib_token_url",
+   "fieldtype": "Data",
+   "label": "Token URL"
+  },
+  {
+   "description": "Transfers gateway base URL (without path). Leave empty to use the default for the selected environment.",
+   "fieldname": "maib_api_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL"
+  },
+  {
+   "default": "payments_gateway",
+   "fieldname": "maib_scope",
+   "fieldtype": "Data",
+   "label": "Scope"
+  },
+  {
+   "fieldname": "maib_actions_section",
+   "fieldtype": "Section Break",
+   "label": "Actions"
+  },
+  {
+   "fieldname": "test_maib_connection",
+   "fieldtype": "Button",
+   "label": "Test Connection"
+  },
+  {
+   "fieldname": "fetch_maib_statement",
+   "fieldtype": "Button",
+   "label": "Fetch Statement"
+  },
+  {
+   "description": "Accounts to sync automatically. Manual Fetch Statement can use any MAIB company bank account.",
+   "fieldname": "maib_sync_section",
+   "fieldtype": "Section Break",
+   "label": "Statement Sync Accounts"
+  },
+  {
+   "fieldname": "maib_sync_accounts",
+   "fieldtype": "Table",
+   "label": "Sync Accounts",
+   "options": "MAIB Statement Sync Account"
+  },
+  {
    "fieldname": "excnage_rates_tab",
    "fieldtype": "Tab Break",
    "label": "Excnage Rates"
@@ -121,7 +220,7 @@
    "fieldname": "automation_mode_of_payment",
    "fieldtype": "Link",
    "label": "Mode of Payment",
-   "mandatory_depends_on": "eval:doc.pos_autocreate_enable",
+   "mandatory_depends_on": "eval:doc.enable_automation",
    "options": "Mode of Payment"
   },
   {
@@ -136,7 +235,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-01-23 00:47:03.741657",
+ "modified": "2026-07-29 00:50:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",

@@ -103,7 +103,7 @@ def create_payment_entry_from_transaction(settings, transaction, rule, ba_accoun
     
     else:
         pe.paid_from = ba_account.name
-        pe.paid_fro_account_currency = ba_account.account_currency
+        pe.paid_from_account_currency = ba_account.account_currency
         amount = flt(transaction.withdrawal)
     
     pe.paid_amount = amount
@@ -269,134 +269,71 @@ def create_journal_entry_from_transaction(settings, transaction, rule, ba_accoun
 
 
 def reconcile_pe_and_bt(payment_entry, bank_transaction):
-    """
-    Reconcile a submitted Payment Entry with a submitted Bank Transaction.
-
-    IMPORTANT:
-    In ERPNext v15, reconciliation links are stored on the Bank Transaction itself
-    in the child table field `payment_entries` (child doctype: "Bank Transaction Payments").
-
-    This function:
-    - Adds a row into Bank Transaction.payment_entries if not already present
-    - Updates Bank Transaction.status to "Reconciled" (best-effort)
-    """
-
-    # Reload fresh docs to ensure we work with full metadata and latest state
-    pe = (
-        frappe.get_doc("Payment Entry", payment_entry.name)
-        if hasattr(payment_entry, "name")
-        else frappe.get_doc("Payment Entry", payment_entry)
-    )
-    bt = (
-        frappe.get_doc("Bank Transaction", bank_transaction.name)
-        if hasattr(bank_transaction, "name")
-        else frappe.get_doc("Bank Transaction", bank_transaction)
-    )
-
-    # Preconditions
-    if pe.docstatus != 1:
-        return
-    if bt.docstatus != 1:
-        return
-
-    # Prevent duplicate reconciliation by checking existing child rows
-    for row in bt.get("payment_entries") or []:
-        # ERPNext stores "Payment Entry" in payment_document; some setups may also store it in payment_type
-        if (
-            (row.get("payment_document") == "Payment Entry" or row.get("payment_type") == "Payment Entry")
-            and row.get("payment_entry") == pe.name
-        ):
-            return
-
-    allocated_amount = flt(bt.deposit or bt.withdrawal)
-
-    # Append reconciliation row (standard ERPNext v15 fieldnames)
-    bt.append(
-        "payment_entries",
-        {
-            "payment_document": "Payment Entry",
-            "payment_entry": pe.name,
-            "allocated_amount": allocated_amount,
-        },
-    )
-
-    # Best-effort status update
-    try:
-        bt.status = "Reconciled"
-    except Exception:
-        pass
-
-    bt.save(ignore_permissions=True)
-
-    frappe.publish_realtime(
-        event="bank_transaction_reload",
-        message={
-            "doctype": bt.doctype,
-            "name": bt.name,
-        }
-    )
+    """Reconcile a submitted Payment Entry with a submitted Bank Transaction."""
+    pe_name = payment_entry.name if hasattr(payment_entry, "name") else payment_entry
+    reconcile_voucher_and_bt("Payment Entry", pe_name, bank_transaction)
 
 
 def reconcile_je_and_bt(journal_entry, bank_transaction):
+    """Reconcile a submitted Journal Entry with a submitted Bank Transaction."""
+    je_name = journal_entry.name if hasattr(journal_entry, "name") else journal_entry
+    reconcile_voucher_and_bt("Journal Entry", je_name, bank_transaction)
+
+
+def reconcile_voucher_and_bt(voucher_doctype, voucher_name, bank_transaction):
     """
-    Reconcile a submitted Journal Entry with a submitted Bank Transaction.
+    Reconcile a submitted voucher with a submitted Bank Transaction via the
+    standard ERPNext v15 path (same as Bank Reconciliation Tool.reconcile_vouchers):
 
-    IMPORTANT:
-    In ERPNext v15, reconciliation links are stored on the Bank Transaction itself
-    in the child table field `journal_entries` (child doctype: "Bank Transaction Journal Entries").
+    - BankTransaction.add_payment_entries (allocated_amount=0 placeholder)
+    - save() → before_update_after_submit → allocate_payment_entries / set_status
 
-    This function:
-    - Adds a row into Bank Transaction.journal_entries if not already present
-    - Updates Bank Transaction.status to "Reconciled" (best-effort)
+    Links are stored in Bank Transaction.payment_entries
+    (child doctype: Bank Transaction Payments) for both PE and JE.
     """
-
-    # Reload fresh docs to ensure we work with full metadata and latest state
-    je = (
-        frappe.get_doc("Journal Entry", journal_entry.name)
-        if hasattr(journal_entry, "name")
-        else frappe.get_doc("Journal Entry", journal_entry)
-    )
-    bt = (
-        frappe.get_doc("Bank Transaction", bank_transaction.name)
+    bt_name = (
+        bank_transaction.name
         if hasattr(bank_transaction, "name")
-        else frappe.get_doc("Bank Transaction", bank_transaction)
+        else bank_transaction
     )
 
-    # Preconditions
-    if je.docstatus != 1:
+    if frappe.db.get_value(voucher_doctype, voucher_name, "docstatus") != 1:
         return
+
+    bt = frappe.get_doc("Bank Transaction", bt_name)
     if bt.docstatus != 1:
         return
 
-    # Prevent duplicate reconciliation by checking existing child rows
-    for row in bt.get("journal_entries") or []:
-        if row.get("journal_entry") == je.name:
+    if flt(bt.unallocated_amount) <= 0:
+        return
+
+    for row in bt.get("payment_entries") or []:
+        if row.get("payment_document") == voucher_doctype and row.get("payment_entry") == voucher_name:
             return
 
-    allocated_amount = flt(bt.deposit or bt.withdrawal)
-
-    # Append reconciliation row (standard ERPNext v15 fieldnames)
-    bt.append(
-        "payment_entries",
-        {
-            "payment_document": "Journal Entry",
-            "payment_entry": je.name,
-            "allocated_amount": allocated_amount,
-        },
-    )
-
-    # Best-effort status update
     try:
-        bt.status = "Reconciled"
+        # Matches erpnext.accounts.doctype.bank_reconciliation_tool
+        # .bank_reconciliation_tool.reconcile_vouchers
+        bt.add_payment_entries(
+            [
+                {
+                    "payment_doctype": voucher_doctype,
+                    "payment_name": voucher_name,
+                }
+            ]
+        )
+        bt.save(ignore_permissions=True)
     except Exception:
-        pass
-
-    bt.save(ignore_permissions=True)
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"Auto-reconcile {voucher_doctype} {voucher_name} failed for Bank Transaction {bt_name}",
+        )
+        return
 
     frappe.publish_realtime(
         event="bank_transaction_reload",
         message={
             "doctype": bt.doctype,
             "name": bt.name,
-        }
+        },
     )

@@ -159,23 +159,13 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"erpnext_moldova_banking.tasks.all"
-# 	],
-# 	"daily": [
-# 		"erpnext_moldova_banking.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"erpnext_moldova_banking.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"erpnext_moldova_banking.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"erpnext_moldova_banking.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"*/5 * * * *": [
+			"erpnext_moldova_banking.utils.maib_sync.run_due_maib_statement_syncs",
+		],
+	},
+}
 
 # Testing
 # -------
