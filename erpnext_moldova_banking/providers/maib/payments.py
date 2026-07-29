@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from typing import Any
 from xml.sax.saxutils import escape
@@ -16,6 +17,34 @@ from erpnext_moldova_banking.providers.maib.client import get_access_token, reso
 
 ORDINARY_PATH = "/api/transfers/mdl/ordinary"
 STATE_PATH = "/api/transfers/state-queries"
+DETAILS_PATH = "/api/transfers/details-queries"
+
+# Transfer Details / State APIs expect instruction IDs like 202607230000001
+# (yyyyMMdd + sequence). Statement ledger IDs (e.g. 21368….000002) are rejected.
+TRANSFER_IDENTITY_RE = re.compile(r"^\d{15}$")
+
+# Ordered labels for Transfer Details → Bank Transaction.description
+TRANSFER_DETAIL_LABELS = (
+	("DocumentNumber", "Document Number"),
+	("Date", "Date"),
+	("CreditTransfer", "Credit Transfer"),
+	("PayerName", "Payer"),
+	("PayerFiscalCode", "Payer IDNO"),
+	("PayerAmount", "Payer Amount"),
+	("Currency", "Currency"),
+	("PayerAccount", "Payer Account"),
+	("PayerSubAccount", "Payer SubAccount"),
+	("PayerBank", "Payer Bank"),
+	("PayerBankCode", "Payer Bank BIC"),
+	("BeneficiaryName", "Beneficiary"),
+	("BeneficiaryFiscalCode", "Beneficiary IDNO"),
+	("BeneficiaryAccount", "Beneficiary Account"),
+	("BeneficiarySubAccount", "Beneficiary SubAccount"),
+	("BeneficiaryBank", "Beneficiary Bank"),
+	("BeneficiaryBankCode", "Beneficiary Bank BIC"),
+	("PaymentDestination", "Payment Destination"),
+	("TransferType", "Transfer Type / Status"),
+)
 
 # MAIB API status → app Payment Order.maib_status
 STATUS_MAP = {
@@ -49,18 +78,30 @@ def _xml_headers(token: str) -> dict[str, str]:
 	}
 
 
-def _post_xml(path: str, body: str, settings=None) -> str:
+def looks_like_transfer_identity(value: str | None) -> bool:
+	"""True when value is a MAIB transfer/instruction id usable in details-queries."""
+	value = (value or "").strip()
+	if not value or "." in value:
+		return False
+	return bool(TRANSFER_IDENTITY_RE.fullmatch(value))
+
+
+def _post_xml(path: str, body: str, settings=None, *, raise_http_error: bool = True) -> str | None:
 	token_payload = get_access_token(settings)
 	token = token_payload["access_token"]
 	base = (token_payload.get("_endpoints") or resolve_maib_endpoints(settings))["api_base_url"].rstrip("/")
 	if not base:
-		frappe.throw(_("MAIB API Base URL is required."))
+		if raise_http_error:
+			frappe.throw(_("MAIB API Base URL is required."))
+		return None
 
 	url = f"{base}{path}"
 	try:
 		response = requests.post(url, data=body.encode("utf-8"), headers=_xml_headers(token), timeout=120)
 	except requests.RequestException as e:
-		frappe.throw(_("Could not reach MAIB payment endpoint: {0}").format(str(e)))
+		if raise_http_error:
+			frappe.throw(_("Could not reach MAIB payment endpoint: {0}").format(str(e)))
+		return None
 
 	if response.status_code >= 400:
 		err = frappe._dict(
@@ -71,9 +112,13 @@ def _post_xml(path: str, body: str, settings=None) -> str:
 			}
 		)
 		frappe.local.maib_last_http_error = err
-		frappe.throw(
-			_("MAIB payment request failed ({0}): {1}").format(response.status_code, response.text[:800])
-		)
+		if raise_http_error:
+			frappe.throw(
+				_("MAIB payment request failed ({0}): {1}").format(
+					response.status_code, response.text[:800]
+				)
+			)
+		return None
 	return response.text or ""
 
 
@@ -128,6 +173,74 @@ def query_instruction_states(instruction_ids: list[str], settings=None) -> list[
 
 	response_text = _post_xml(STATE_PATH, "".join(body), settings=settings)
 	return _parse_state_response(response_text)
+
+
+def query_transfer_details(
+	transaction_id: str,
+	settings=None,
+	*,
+	soft: bool = False,
+) -> dict[str, str]:
+	"""Fetch full transfer details by transfer/instruction id.
+
+	Statement ledger TransactionIds (with a decimal suffix) are not accepted by MAIB.
+	Pass soft=True to return {} on HTTP/network errors without frappe.throw (keeps
+	statement sync message_log clean).
+	"""
+	transaction_id = (transaction_id or "").strip()
+	if not transaction_id:
+		return {}
+
+	body = (
+		'<?xml version="1.0" encoding="UTF-8"?>'
+		"<root>"
+		f"<TransactionId>{escape(transaction_id)}</TransactionId>"
+		"</root>"
+	)
+	response_text = _post_xml(
+		DETAILS_PATH, body, settings=settings, raise_http_error=not soft
+	)
+	if not response_text:
+		return {}
+	return parse_transfer_details_xml(response_text)
+
+
+def parse_transfer_details_xml(xml_text: str) -> dict[str, str]:
+	"""Parse Transfer Details Query XML into a flat tag→text map."""
+	if not (xml_text or "").strip():
+		return {}
+	try:
+		root = ET.fromstring(xml_text)
+	except ET.ParseError:
+		return {}
+
+	details: dict[str, str] = {}
+	for node in list(root):
+		tag = _local(node.tag)
+		if tag.lower() in {"error", "message"}:
+			continue
+		text = (node.text or "").strip()
+		if text:
+			details[tag] = text
+	return details
+
+
+def format_transfer_details_description(details: dict[str, str]) -> str:
+	"""Render transfer details in the expanded DBO-compatible description format."""
+	from erpnext_moldova_banking.providers.maib.description import build_maib_transaction_description
+
+	return build_maib_transaction_description({}, transfer_details=details)
+
+
+def append_transfer_details_to_description(base_description: str, details: dict[str, str]) -> str:
+	from erpnext_moldova_banking.providers.maib.description import build_maib_transaction_description
+
+	if not details:
+		return (base_description or "").strip()
+	return build_maib_transaction_description(
+		{"description": base_description or ""},
+		transfer_details=details,
+	)
 
 
 def _local(tag: str) -> str:

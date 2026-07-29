@@ -141,47 +141,130 @@ function open_maib_fetch_dialog(frm) {
 			dialog.disable_primary_action();
 			dialog.get_primary_btn().prop("disabled", true);
 
-			// set_message() uses .text() and escapes HTML — render progress via .html()
+			const $status = $('<p class="text-muted"></p>').text(
+				__("Fetching statement from MAIB...")
+			);
+			const $bar = $(
+				'<div class="progress-bar" role="progressbar" style="width: 2%; transition: width 0.25s ease;"></div>'
+			);
 			dialog.$body.addClass("hide");
 			dialog.$message
 				.removeClass("hide")
-				.html(
-					`<div class="text-muted" style="padding: 1rem 0;">
-						<p>${__("Fetching statement from MAIB...")}</p>
-						<div class="progress progress-bar-striped progress-bar-animated" style="height: 8px;">
-							<div class="progress-bar" role="progressbar" style="width: 100%"></div>
-						</div>
-					</div>`
+				.empty()
+				.append(
+					$('<div style="padding: 1rem 0;"></div>')
+						.append($status)
+						.append($('<div class="progress" style="height: 8px;"></div>').append($bar))
 				);
+
+			const set_progress = (percent, message) => {
+				const pct = Math.max(2, Math.min(100, percent));
+				$bar.css("width", pct + "%");
+				if (message) {
+					$status.text(message);
+				}
+			};
+
+			const fail = () => {
+				dialog.clear_message();
+				dialog.$body.removeClass("hide");
+				dialog.enable_primary_action();
+				dialog.get_primary_btn().prop("disabled", false);
+			};
+
+			set_progress(2, __("Fetching statement from MAIB..."));
 
 			frappe
 				.call({
-					method: "erpnext_moldova_banking.utils.maib_sync.fetch_maib_statement",
+					method: "erpnext_moldova_banking.utils.maib_sync.download_maib_statement",
 					args: {
 						bank_account: values.bank_account,
 						from_date: values.from_date,
 						to_date: values.to_date,
-						auto_submit: values.auto_submit ? 1 : 0,
 					},
 				})
-				.then((r) => {
-					const msg = r.message || {};
-					dialog.hide();
-					frappe.msgprint({
-						title: __("MAIB Statement Fetch Complete"),
-						indicator: "green",
-						message: __(
-							"Fetched {0} rows from the bank.<br>Created: {1}<br>Skipped duplicates: {2}<br>Errors: {3}",
-							[msg.fetched || 0, msg.created || 0, msg.skipped || 0, msg.errors || 0]
-						),
-					});
-					frm.reload_doc();
+				.then(async (r) => {
+					try {
+						const payload = r.message || {};
+						const rows = payload.rows || [];
+						const pending = rows.filter((row) => row.is_new);
+						const fetched = payload.fetched || rows.length || 0;
+
+						set_progress(
+							5,
+							__("Loaded {0} transactions from the bank", [fetched])
+						);
+
+						let created = 0;
+						let skipped = rows.length - pending.length;
+						let errors = 0;
+
+						if (pending.length === 0) {
+							set_progress(100, __("Done"));
+						} else {
+							const step = 95 / pending.length;
+							for (let i = 0; i < pending.length; i++) {
+								set_progress(
+									5 + step * i,
+									__("Loading transaction details ({0}/{1})...", [
+										i + 1,
+										pending.length,
+									])
+								);
+								try {
+									const pr = await frappe.call({
+										method:
+											"erpnext_moldova_banking.utils.maib_sync.process_maib_statement_row",
+										args: {
+											bank_account: values.bank_account,
+											row: pending[i],
+											auto_submit: values.auto_submit ? 1 : 0,
+										},
+									});
+									const stats = pr.message || {};
+									created += stats.created || 0;
+									skipped += stats.skipped || 0;
+									errors += stats.errors || 0;
+								} catch (e) {
+									errors += 1;
+								}
+								set_progress(
+									5 + step * (i + 1),
+									__("Loaded transaction details ({0}/{1})", [
+										i + 1,
+										pending.length,
+									])
+								);
+							}
+						}
+
+						await frappe.call({
+							method:
+								"erpnext_moldova_banking.utils.maib_sync.finalize_maib_statement_fetch",
+							args: {
+								bank_account: values.bank_account,
+								fetched,
+								created,
+								skipped,
+								errors,
+							},
+						});
+
+						dialog.hide();
+						frappe.msgprint({
+							title: __("MAIB Statement Fetch Complete"),
+							indicator: errors ? "orange" : "green",
+							message: __(
+								"Fetched {0} rows from the bank.<br>Created: {1}<br>Skipped duplicates: {2}<br>Errors: {3}",
+								[fetched, created, skipped, errors]
+							),
+						});
+						frm.reload_doc();
+					} catch (e) {
+						fail();
+					}
 				})
-				.catch(() => {
-					dialog.clear_message();
-					dialog.enable_primary_action();
-					dialog.get_primary_btn().prop("disabled", false);
-				});
+				.catch(() => fail());
 		},
 	});
 

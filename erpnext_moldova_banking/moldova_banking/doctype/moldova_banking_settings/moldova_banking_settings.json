@@ -20,6 +20,7 @@
   "maib_api_tab",
   "maib_enabled",
   "maib_outward_payments_enabled",
+  "maib_auto_payment_entry_enabled",
   "maib_environment",
   "column_break_maib_auth",
   "maib_client_id",
@@ -120,6 +121,14 @@
    "fieldname": "maib_outward_payments_enabled",
    "fieldtype": "Check",
    "label": "Enable Outward Payments"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.maib_enabled && doc.maib_outward_payments_enabled",
+   "description": "When a MAIB Payment Order is Executed and a matching Bank Transaction appears in the statement, automatically create a Payment Entry against the Purchase Invoice / Payment Request, reconcile it with the Bank Transaction, and close the Payment Request.",
+   "fieldname": "maib_auto_payment_entry_enabled",
+   "fieldtype": "Check",
+   "label": "Auto Payment Entry from Statement"
   },
   {
    "default": "Test",
@@ -244,7 +253,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-29 00:50:00.000000",
+ "modified": "2026-07-29 22:10:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",

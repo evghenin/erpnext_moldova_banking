@@ -216,5 +216,37 @@
   "permlevel": 0,
   "read_only": 1,
   "reqd": 0
+ },
+ {
+  "allow_on_submit": 1,
+  "doctype": "Custom Field",
+  "dt": "Payment Order",
+  "fieldname": "maib_payment_entry",
+  "fieldtype": "Link",
+  "insert_after": "maib_api_error",
+  "label": "MAIB Payment Entry",
+  "module": "Moldova Banking",
+  "name": "Payment Order-maib_payment_entry",
+  "no_copy": 1,
+  "options": "Payment Entry",
+  "permlevel": 0,
+  "read_only": 1,
+  "reqd": 0
+ },
+ {
+  "allow_on_submit": 1,
+  "doctype": "Custom Field",
+  "dt": "Payment Order",
+  "fieldname": "maib_bank_transaction",
+  "fieldtype": "Link",
+  "insert_after": "maib_payment_entry",
+  "label": "MAIB Bank Transaction",
+  "module": "Moldova Banking",
+  "name": "Payment Order-maib_bank_transaction",
+  "no_copy": 1,
+  "options": "Bank Transaction",
+  "permlevel": 0,
+  "read_only": 1,
+  "reqd": 0
  }
 ]

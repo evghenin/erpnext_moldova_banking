@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <Operational>
+        <Account value="22514040174">
+            <Currency>MDL</Currency>
+            <Balance>
+                <Initial>
+                    <Date>20110201</Date>
+                    <Value>43859.17</Value>
+                </Initial>
+                <Final>
+                    <Date>20110202</Date>
+                    <Value>45210.45</Value>
+                </Final>
+            </Balance>
+            <Date value="20110201">
+                <InitialBalance>43859.17</InitialBalance>
+                <FinalBalance>45210.45</FinalBalance>
+                <Transaction>
+                    <DocumentNumber>123456789</DocumentNumber>
+                    <ContraParty value="(R)SPRING LIMITED">
+                        <FiscalCode>1506601000031</FiscalCode>
+                    </ContraParty>
+                    <PaymentDestination>Invoice payment</PaymentDestination>
+                    <CreditOrDebit>C</CreditOrDebit>
+                    <TransactionId>987654321</TransactionId>
+                    <TransactionAmount>1351.28</TransactionAmount>
+                </Transaction>
+                <Transaction>
+                    <DocumentNumber>999</DocumentNumber>
+                    <ContraParty value="X">
+                        <FiscalCode>1002600015382</FiscalCode>
+                    </ContraParty>
+                    <PaymentDestination>Outgoing</PaymentDestination>
+                    <CreditOrDebit>D</CreditOrDebit>
+                    <TransactionId>111</TransactionId>
+                    <TransactionAmount>10.00</TransactionAmount>
+                </Transaction>
+            </Date>
+            <Message></Message>
+        </Account>
+    </Operational>
+    <Message></Message>
+</root>

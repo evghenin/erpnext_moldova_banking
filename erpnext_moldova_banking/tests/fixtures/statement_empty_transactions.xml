@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <Operational>
+    <Account value="22516020091">
+      <Currency>MDL</Currency>
+      <Balance>
+        <Initial><Date>20260729</Date><Value>100.00</Value></Initial>
+        <Final><Date>20260729</Date><Value>100.00</Value></Final>
+      </Balance>
+      <Date value="20260729">
+        <InitialBalance>100.00</InitialBalance>
+        <FinalBalance>100.00</FinalBalance>
+      </Date>
+      <Message></Message>
+    </Account>
+  </Operational>
+</root>

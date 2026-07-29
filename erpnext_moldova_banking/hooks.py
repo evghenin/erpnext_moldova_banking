@@ -153,7 +153,10 @@ doctype_js = {
 doc_events = {
 	"Bank Transaction": {
 		"before_insert": "erpnext_moldova_banking.utils.bank_transaction_unique_key.ensure_unique_transaction",
-		"on_submit": "erpnext_moldova_banking.utils.bank_transaction_automation.handle_bank_transaction",
+		"on_submit": [
+			"erpnext_moldova_banking.utils.bank_transaction_automation.handle_bank_transaction",
+			"erpnext_moldova_banking.utils.maib_payment_match.try_match_bank_transaction",
+		],
 	},
 	"Payment Order": {
 		"validate": "erpnext_moldova_banking.utils.maib_payment_order.validate_payment_order_for_maib",
@@ -168,6 +171,7 @@ scheduler_events = {
 		"*/5 * * * *": [
 			"erpnext_moldova_banking.utils.maib_sync.run_due_maib_statement_syncs",
 			"erpnext_moldova_banking.utils.maib_payment_order.poll_open_maib_payment_orders",
+			"erpnext_moldova_banking.utils.maib_payment_match.process_executed_payment_orders",
 		],
 	},
 }
@@ -267,6 +271,8 @@ fixtures = [
 					"Payment Order-maib_last_sync",
 					"Payment Order-maib_bank_comment",
 					"Payment Order-maib_api_error",
+					"Payment Order-maib_payment_entry",
+					"Payment Order-maib_bank_transaction",
 				],
 			]
 		],

@@ -111,6 +111,10 @@ def _parse_transaction(txn: ET.Element, posting_date, currency: str) -> dict[str
 		desc_lines.append("")
 	if amount:
 		desc_lines.append(f"Amount: {amount:.2f}")
+	if currency:
+		desc_lines.append(f"Currency: {currency}")
+	if credit_or_debit:
+		desc_lines.append(f"Credit/Debit: {credit_or_debit}")
 	if document_number:
 		desc_lines.append(f"Document Number: {document_number}")
 	if transaction_id:
@@ -124,6 +128,9 @@ def _parse_transaction(txn: ET.Element, posting_date, currency: str) -> dict[str
 		"date": posting_date,
 		"deposit": deposit,
 		"withdrawal": withdrawal,
+		"amount": amount,
+		"payment_destination": payment_destination,
+		"credit_or_debit": credit_or_debit,
 		"description": "\n".join(desc_lines).strip(),
 		"reference_number": transaction_id or document_number,
 		"currency": currency or None,

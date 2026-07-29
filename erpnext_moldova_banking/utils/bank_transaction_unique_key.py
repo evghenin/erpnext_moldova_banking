@@ -1,12 +1,15 @@
 import frappe
 from frappe import _
+from frappe.utils import getdate
 
 
 def make_transaction_unique_key(company, bank_account, posting_date, deposit, withdrawal, reference_number):
     """Build a deterministic unique key for a bank transaction."""
     # Signed amount: incoming positive, outgoing negative
     amount = (deposit or 0) - (withdrawal or 0)
-    posting_date_str = posting_date.isoformat() if posting_date else ""
+    posting_date_str = ""
+    if posting_date:
+        posting_date_str = getdate(posting_date).isoformat()
     ref = (reference_number or "").strip()
 
     return f"{company}::{bank_account}::{posting_date_str}::{amount:.2f}::{ref}"

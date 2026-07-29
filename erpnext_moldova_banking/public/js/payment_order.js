@@ -37,6 +37,16 @@ frappe.ui.form.on("Payment Order", {
 					__("MAIB")
 				);
 			}
+
+			if (status === "Executed" && !frm.doc.maib_payment_entry) {
+				frm.add_custom_button(
+					__("Match & Create Payment Entry"),
+					() => {
+						frm.trigger("match_create_payment_entry");
+					},
+					__("MAIB")
+				);
+			}
 		});
 	},
 
@@ -85,5 +95,43 @@ frappe.ui.form.on("Payment Order", {
 				}
 			},
 		});
+	},
+
+	match_create_payment_entry(frm) {
+		frappe.confirm(
+			__(
+				"Find matching Bank Transaction and create Payment Entry for this Payment Order?"
+			),
+			() => {
+				frappe.call({
+					method:
+						"erpnext_moldova_banking.utils.maib_payment_match.match_payment_order_to_bank_transaction",
+					args: { name: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Matching and creating Payment Entry..."),
+					callback(r) {
+						frm.reload_doc();
+						const msg = r.message || {};
+						if (msg.ok) {
+							frappe.show_alert({
+								message: __(
+									"Payment Entry {0} created / linked (Bank Transaction {1})",
+									[msg.payment_entry || "", msg.bank_transaction || ""]
+								),
+								indicator: "green",
+							});
+						} else if (msg.skipped === "no_match") {
+							frappe.msgprint({
+								title: __("No Match"),
+								message: __(
+									"No matching submitted Bank Transaction was found for this Payment Order."
+								),
+								indicator: "orange",
+							});
+						}
+					},
+				});
+			}
+		);
 	},
 });

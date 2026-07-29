@@ -279,14 +279,24 @@ def refresh_payment_order_maib_status(name: str) -> dict[str, Any]:
 		},
 	)
 	frappe.db.commit()
+
+	match_result = None
+	if mapped == "Executed":
+		from erpnext_moldova_banking.utils.maib_payment_match import try_match_after_status_update
+
+		match_result = try_match_after_status_update(doc.name)
+
 	doc.reload()
-	return {
+	result = {
 		"name": doc.name,
 		"maib_instruction_id": doc.get("maib_instruction_id"),
 		"maib_status": doc.get("maib_status"),
 		"maib_bank_comment": doc.get("maib_bank_comment"),
 		"raw_status": state.get("status"),
 	}
+	if match_result:
+		result["payment_match"] = match_result
+	return result
 
 
 def poll_open_maib_payment_orders(limit: int = 50) -> dict[str, Any]:
@@ -344,6 +354,10 @@ def poll_open_maib_payment_orders(limit: int = 50) -> dict[str, Any]:
 				},
 			)
 			updated += 1
+			if mapped == "Executed":
+				from erpnext_moldova_banking.utils.maib_payment_match import try_match_after_status_update
+
+				try_match_after_status_update(row.name)
 		except Exception:
 			errors += 1
 			frappe.log_error(frappe.get_traceback(), f"MAIB Payment Order poll update {row.name}")

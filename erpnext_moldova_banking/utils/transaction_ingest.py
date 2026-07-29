@@ -15,6 +15,7 @@ def ingest_transactions(
 	bank_account: str,
 	rows: list[dict[str, Any]],
 	submit: bool = False,
+	progress_callback=None,
 ) -> dict[str, Any]:
 	"""Create Bank Transactions from normalized rows.
 
@@ -34,7 +35,8 @@ def ingest_transactions(
 		"error_messages": [],
 	}
 
-	for row in rows or []:
+	total = len(rows or [])
+	for idx, row in enumerate(rows or []):
 		try:
 			_ingest_one(ba.name, company, currency, row, submit=submit, stats=stats)
 		except frappe.ValidationError as e:
@@ -50,6 +52,12 @@ def ingest_transactions(
 			stats["errors"] += 1
 			stats["error_messages"].append(str(e))
 			frappe.log_error(frappe.get_traceback(), "Bank transaction ingest failed")
+
+		if progress_callback:
+			try:
+				progress_callback(idx + 1, total)
+			except Exception:
+				pass
 
 	return stats
 
