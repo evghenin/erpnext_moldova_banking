@@ -155,6 +155,7 @@ doc_events = {
 		"before_insert": "erpnext_moldova_banking.utils.bank_transaction_unique_key.ensure_unique_transaction",
 		"on_submit": [
 			"erpnext_moldova_banking.utils.bank_transaction_automation.handle_bank_transaction",
+			"erpnext_moldova_banking.utils.telegram_notify.on_bank_transaction_submit",
 			"erpnext_moldova_banking.utils.maib_payment_match.try_match_bank_transaction",
 		],
 	},

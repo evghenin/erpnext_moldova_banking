@@ -80,6 +80,55 @@ frappe.ui.form.on("Moldova Banking Settings", {
 		}
 		open_maib_fetch_dialog(frm);
 	},
+	telegram_enabled(frm) {
+		if (!frm.doc.telegram_enabled) {
+			return;
+		}
+		const defaults = [
+			"telegram_notify_file_import",
+			"telegram_notify_api",
+			"telegram_notify_incoming",
+			"telegram_notify_outgoing",
+			"telegram_notify_automation_matched",
+			"telegram_notify_automation_unmatched",
+			"telegram_field_company",
+			"telegram_field_party_name",
+			"telegram_field_party_idno",
+			"telegram_field_amount",
+			"telegram_field_description",
+			"telegram_field_date",
+		];
+		defaults.forEach((fieldname) => {
+			if (!frm.doc[fieldname]) {
+				frm.set_value(fieldname, 1);
+			}
+		});
+	},
+	test_telegram_connection(frm) {
+		if (frm.is_dirty()) {
+			frappe.msgprint(__("Please save Moldova Banking Settings before testing Telegram."));
+			return;
+		}
+		const btn = frm.get_field("test_telegram_connection")?.$input;
+		if (btn) btn.prop("disabled", true);
+
+		frappe
+			.call({
+				method: "erpnext_moldova_banking.utils.telegram_notify.test_telegram_connection",
+				freeze: true,
+				freeze_message: __("Sending test message..."),
+			})
+			.then(() => {
+				frappe.msgprint({
+					title: __("Telegram OK"),
+					indicator: "green",
+					message: __("Test message sent successfully."),
+				});
+			})
+			.finally(() => {
+				if (btn) btn.prop("disabled", false);
+			});
+	},
 });
 
 function open_maib_fetch_dialog(frm) {

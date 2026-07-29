@@ -272,7 +272,9 @@ def start_import(
         add_bank_account(data, bank_account)
         write_files(import_file, data)
 
+    previous_source = getattr(frappe.flags, "moldova_bt_source", None)
     try:
+        frappe.flags.moldova_bt_source = "file_import"
         i = Importer(data_import.reference_doctype, data_import=data_import)
         i.import_data()
     except Exception:
@@ -281,6 +283,7 @@ def start_import(
         data_import.log_error("Moldova Bank Statement Import failed")
     finally:
         frappe.flags.in_import = False
+        frappe.flags.moldova_bt_source = previous_source
 
     frappe.publish_realtime("data_import_refresh", {"data_import": data_import.name})
 

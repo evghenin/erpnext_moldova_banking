@@ -19,15 +19,18 @@ def normalize_string(value: str) -> str:
 
 
 def handle_bank_transaction(doc, method=None):
+    """Match Automation rules. Sets frappe.flags.moldova_bt_automation_matched."""
+    frappe.flags.moldova_bt_automation_matched = False
+
     # 1. Load settings
     settings = frappe.get_single("Moldova Banking Settings")
 
     if not settings.enable_automation:
-        return
+        return False
 
     # Defensive checks
     if not doc.company or not doc.bank_account or not doc.description:
-        return
+        return False
 
     normalized_description = normalize_string(doc.description)
 
@@ -46,6 +49,7 @@ def handle_bank_transaction(doc, method=None):
 
         ba_account = frappe.get_doc("Account", ba.account)
 
+        second_account = None
         if rule.document_type == "Journal Entry" and rule.second_account:
             second_account = frappe.get_doc("Account", rule.second_account)
 
@@ -74,8 +78,11 @@ def handle_bank_transaction(doc, method=None):
         elif rule.document_type == "Journal Entry":
             create_journal_entry_from_transaction(settings, doc, rule, ba_account, second_account)
 
+        frappe.flags.moldova_bt_automation_matched = True
         # One transaction → one rule → one PE or JE
-        break
+        return True
+
+    return False
 
 
 def create_payment_entry_from_transaction(settings, transaction, rule, ba_account):

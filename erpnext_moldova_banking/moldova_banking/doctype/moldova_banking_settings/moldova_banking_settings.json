@@ -34,6 +34,28 @@
   "fetch_maib_statement",
   "maib_sync_section",
   "maib_sync_accounts",
+  "telegram_tab",
+  "telegram_enabled",
+  "telegram_bot_token",
+  "column_break_telegram",
+  "telegram_chat_id",
+  "test_telegram_connection",
+  "telegram_notify_section",
+  "telegram_notify_file_import",
+  "telegram_notify_api",
+  "telegram_notify_incoming",
+  "column_break_telegram_notify",
+  "telegram_notify_outgoing",
+  "telegram_notify_automation_matched",
+  "telegram_notify_automation_unmatched",
+  "telegram_fields_section",
+  "telegram_field_company",
+  "telegram_field_party_name",
+  "telegram_field_party_idno",
+  "column_break_telegram_fields",
+  "telegram_field_amount",
+  "telegram_field_description",
+  "telegram_field_date",
   "excnage_rates_tab",
   "bnm_rates_section",
   "bnm_rates_key",
@@ -204,6 +226,146 @@
    "options": "MAIB Statement Sync Account"
   },
   {
+   "fieldname": "telegram_tab",
+   "fieldtype": "Tab Break",
+   "label": "Telegram"
+  },
+  {
+   "default": "0",
+   "fieldname": "telegram_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Telegram Notifications"
+  },
+  {
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_bot_token",
+   "fieldtype": "Password",
+   "label": "Bot Token",
+   "mandatory_depends_on": "eval:doc.telegram_enabled"
+  },
+  {
+   "fieldname": "column_break_telegram",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.telegram_enabled",
+   "description": "Chat, group or channel ID that will receive messages.",
+   "fieldname": "telegram_chat_id",
+   "fieldtype": "Data",
+   "label": "Chat ID",
+   "mandatory_depends_on": "eval:doc.telegram_enabled"
+  },
+  {
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "test_telegram_connection",
+   "fieldtype": "Button",
+   "label": "Test Telegram"
+  },
+  {
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_section",
+   "fieldtype": "Section Break",
+   "label": "Notify about new transactions"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_file_import",
+   "fieldtype": "Check",
+   "label": "Via file import"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_api",
+   "fieldtype": "Check",
+   "label": "Via API"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_incoming",
+   "fieldtype": "Check",
+   "label": "Incoming"
+  },
+  {
+   "fieldname": "column_break_telegram_notify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_outgoing",
+   "fieldtype": "Check",
+   "label": "Outgoing"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_automation_matched",
+   "fieldtype": "Check",
+   "label": "Matched Automation"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_notify_automation_unmatched",
+   "fieldtype": "Check",
+   "label": "Not matched Automation"
+  },
+  {
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_fields_section",
+   "fieldtype": "Section Break",
+   "label": "Message fields"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_field_company",
+   "fieldtype": "Check",
+   "label": "Company"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_field_party_name",
+   "fieldtype": "Check",
+   "label": "Sender / Receiver name"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_field_party_idno",
+   "fieldtype": "Check",
+   "label": "Sender / Receiver IDNO/IDNP"
+  },
+  {
+   "fieldname": "column_break_telegram_fields",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_field_amount",
+   "fieldtype": "Check",
+   "label": "Amount (with currency)"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_field_description",
+   "fieldtype": "Check",
+   "label": "Description"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.telegram_enabled",
+   "fieldname": "telegram_field_date",
+   "fieldtype": "Check",
+   "label": "Payment date"
+  },
+  {
    "fieldname": "excnage_rates_tab",
    "fieldtype": "Tab Break",
    "label": "Excnage Rates"
@@ -253,7 +415,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-29 22:10:00.000000",
+ "modified": "2026-07-29 23:30:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",

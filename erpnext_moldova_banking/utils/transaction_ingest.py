@@ -9,6 +9,7 @@ import frappe
 from frappe.utils import flt, getdate
 
 from erpnext_moldova_banking.utils.party import resolve_party_by_idno
+from erpnext_moldova_banking.utils.telegram_notify import notify_new_bank_transaction
 
 
 def ingest_transactions(
@@ -16,6 +17,7 @@ def ingest_transactions(
 	rows: list[dict[str, Any]],
 	submit: bool = False,
 	progress_callback=None,
+	source: str = "api",
 ) -> dict[str, Any]:
 	"""Create Bank Transactions from normalized rows.
 
@@ -36,33 +38,46 @@ def ingest_transactions(
 	}
 
 	total = len(rows or [])
-	for idx, row in enumerate(rows or []):
-		try:
-			_ingest_one(ba.name, company, currency, row, submit=submit, stats=stats)
-		except frappe.ValidationError as e:
-			# Duplicate unique_key raises ValidationError via frappe.throw
-			msg = str(e)
-			if "Duplicate bank statement line" in msg or "unique_key" in msg.lower():
-				stats["skipped"] += 1
-			else:
-				stats["errors"] += 1
-				stats["error_messages"].append(msg)
-				frappe.log_error(frappe.get_traceback(), "Bank transaction ingest validation error")
-		except Exception as e:
-			stats["errors"] += 1
-			stats["error_messages"].append(str(e))
-			frappe.log_error(frappe.get_traceback(), "Bank transaction ingest failed")
-
-		if progress_callback:
+	previous_source = getattr(frappe.flags, "moldova_bt_source", None)
+	frappe.flags.moldova_bt_source = source
+	try:
+		for idx, row in enumerate(rows or []):
 			try:
-				progress_callback(idx + 1, total)
-			except Exception:
-				pass
+				_ingest_one(
+					ba.name,
+					company,
+					currency,
+					row,
+					submit=submit,
+					stats=stats,
+					source=source,
+				)
+			except frappe.ValidationError as e:
+				# Duplicate unique_key raises ValidationError via frappe.throw
+				msg = str(e)
+				if "Duplicate bank statement line" in msg or "unique_key" in msg.lower():
+					stats["skipped"] += 1
+				else:
+					stats["errors"] += 1
+					stats["error_messages"].append(msg)
+					frappe.log_error(frappe.get_traceback(), "Bank transaction ingest validation error")
+			except Exception as e:
+				stats["errors"] += 1
+				stats["error_messages"].append(str(e))
+				frappe.log_error(frappe.get_traceback(), "Bank transaction ingest failed")
+
+			if progress_callback:
+				try:
+					progress_callback(idx + 1, total)
+				except Exception:
+					pass
+	finally:
+		frappe.flags.moldova_bt_source = previous_source
 
 	return stats
 
 
-def _ingest_one(bank_account, company, currency, row, submit, stats):
+def _ingest_one(bank_account, company, currency, row, submit, stats, source="api"):
 	party_type, party = resolve_party_by_idno(row)
 
 	doc = frappe.new_doc("Bank Transaction")
@@ -86,9 +101,13 @@ def _ingest_one(bank_account, company, currency, row, submit, stats):
 	if row.get("cp_idno") and meta.has_field("party_name"):
 		pass
 
+	frappe.flags.moldova_bt_automation_matched = False
 	doc.insert(ignore_permissions=True)
 	stats["created"] += 1
 	stats["created_names"].append(doc.name)
 
 	if submit:
 		doc.submit()
+	else:
+		# Automation only runs on submit → treat as unmatched.
+		notify_new_bank_transaction(doc, source=source, automation_matched=False)
