@@ -5,4 +5,7 @@ from frappe.model.document import Document
 
 
 class MAIBStatementSyncAccount(Document):
-	pass
+	def validate(self):
+		from erpnext_moldova_banking.utils.maib_sync import validate_sync_hours
+
+		validate_sync_hours(self.hours_from, self.hours_to)

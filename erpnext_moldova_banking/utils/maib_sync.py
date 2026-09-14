@@ -210,16 +210,38 @@ def enrich_new_rows_with_transfer_details(
 	return [enrich_single_row(bank_account, row, settings=settings) for row in (rows or [])]
 
 
+def _commit_idle_transaction():
+	"""Drop a read-only transaction so later HTTP calls do not hold InnoDB locks."""
+	frappe.db.commit()
+
+
 def _update_sync_row_status(bank_account: str, status: str, success: bool = True):
-	settings = frappe.get_single(SETTINGS_DOCTYPE)
-	changed = False
-	for row in settings.get("maib_sync_accounts") or []:
-		if row.bank_account == bank_account:
-			row.last_synced_on = now_datetime()
-			row.last_sync_status = (status or "")[:140]
-			changed = True
-	if changed:
-		settings.save(ignore_permissions=True)
+	"""Patch the sync child row only — do not save Moldova Banking Settings.
+
+	Saving the Single re-runs Password field handling against `__Auth` and
+	contends with desk saves of MAIB company client secrets.
+	"""
+	name = frappe.db.get_value(
+		"MAIB Statement Sync Account",
+		{
+			"parent": SETTINGS_DOCTYPE,
+			"parenttype": SETTINGS_DOCTYPE,
+			"parentfield": "maib_sync_accounts",
+			"bank_account": bank_account,
+		},
+		"name",
+	)
+	if not name:
+		return
+	frappe.db.set_value(
+		"MAIB Statement Sync Account",
+		name,
+		{
+			"last_synced_on": now_datetime(),
+			"last_sync_status": (status or "")[:140],
+		},
+		update_modified=False,
+	)
 
 
 @frappe.whitelist()
@@ -244,6 +266,8 @@ def test_maib_connection(company: str | None = None, companies: list[str] | str 
 		selection = [row.company for row in rows if row.company]
 	if not selection:
 		frappe.throw(_("No companies configured for MAIB credentials."))
+
+	_commit_idle_transaction()
 
 	results: list[dict[str, Any]] = []
 	for company_name in selection:
@@ -336,6 +360,7 @@ def download_maib_statement(
 		frappe.throw(_("No MAIB credentials configured for company {0}.").format(company_name))
 
 	account_id = resolve_api_account_id(bank_account)
+	_commit_idle_transaction()
 	xml_text = fetch_statement_xml(
 		account_id,
 		_to_yyyymmdd(from_date),
@@ -387,6 +412,7 @@ def process_maib_statement_row(
 	row = dict(row or {})
 	row.pop("is_new", None)
 
+	_commit_idle_transaction()
 	enriched = enrich_single_row(bank_account, row, settings=settings)
 	stats = ingest_transactions(
 		bank_account,
@@ -447,6 +473,7 @@ def fetch_maib_statement(
 	company = frappe.db.get_value("Bank Account", bank_account, "company")
 	try:
 		account_id = resolve_api_account_id(bank_account)
+		_commit_idle_transaction()
 		xml_text = fetch_statement_xml(
 			account_id,
 			_to_yyyymmdd(from_date),
@@ -475,8 +502,48 @@ def fetch_maib_statement(
 		raise
 
 
+def _is_blank_hour(value) -> bool:
+	return value is None or value == ""
+
+
+def _parse_hour(value, label: str) -> int:
+	try:
+		hour = int(value)
+	except (TypeError, ValueError):
+		frappe.throw(_("{0} must be an hour between 0 and 23.").format(label))
+	if hour < 0 or hour > 23:
+		frappe.throw(_("{0} must be an hour between 0 and 23.").format(label))
+	return hour
+
+
+def validate_sync_hours(hours_from, hours_to) -> tuple[int, int] | None:
+	"""Require both hours empty or both set (0–23). Returns (from, to) or None."""
+	from_blank = _is_blank_hour(hours_from)
+	to_blank = _is_blank_hour(hours_to)
+	if from_blank and to_blank:
+		return None
+	if from_blank or to_blank:
+		frappe.throw(_("Fill both Hours From and Hours To, or leave both empty."))
+	return _parse_hour(hours_from, _("Hours From")), _parse_hour(hours_to, _("Hours To"))
+
+
+def _within_sync_hours(row, now) -> bool:
+	window = validate_sync_hours(getattr(row, "hours_from", None), getattr(row, "hours_to", None))
+	if window is None:
+		return True
+	hours_from, hours_to = window
+	hour = now.hour
+	if hours_from <= hours_to:
+		return hours_from <= hour <= hours_to
+	# Overnight window, e.g. 22–6.
+	return hour >= hours_from or hour <= hours_to
+
+
 def _is_due(row, now) -> bool:
 	if row.disabled or row.schedule in (None, "", "Manual only"):
+		return False
+
+	if not _within_sync_hours(row, now):
 		return False
 
 	minutes = SCHEDULE_MINUTES.get(row.schedule)
@@ -517,13 +584,15 @@ def run_due_maib_statement_syncs():
 		return
 
 	now = now_datetime()
-	for row in list(settings.get("maib_sync_accounts") or []):
-		if not _is_due(row, now):
-			continue
+	due_rows = [row for row in list(settings.get("maib_sync_accounts") or []) if _is_due(row, now)]
+	_commit_idle_transaction()
+
+	for row in due_rows:
 		from_date, to_date = _auto_date_range(row)
 		try:
 			company = frappe.db.get_value("Bank Account", row.bank_account, "company")
 			account_id = resolve_api_account_id(row.bank_account)
+			_commit_idle_transaction()
 			xml_text = fetch_statement_xml(
 				account_id,
 				_to_yyyymmdd(from_date),

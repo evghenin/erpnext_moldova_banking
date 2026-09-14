@@ -5,11 +5,13 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": [
+  "field_order": [
   "disabled",
   "bank_account",
   "auto_submit",
   "schedule",
+  "hours_from",
+  "hours_to",
   "column_break_status",
   "last_synced_on",
   "last_sync_status"
@@ -47,6 +49,20 @@
    "reqd": 1
   },
   {
+   "description": "Hour of day (0\u201323). Leave both Hours From and Hours To empty to sync all day, or fill both.",
+   "fieldname": "hours_from",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Hours From"
+  },
+  {
+   "description": "Hour of day (0\u201323). Leave both Hours From and Hours To empty to sync all day, or fill both.",
+   "fieldname": "hours_to",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Hours To"
+  },
+  {
    "fieldname": "column_break_status",
    "fieldtype": "Column Break"
   },
@@ -67,7 +83,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-29 00:50:00.000000",
+ "modified": "2026-09-15 00:50:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "MAIB Statement Sync Account",
