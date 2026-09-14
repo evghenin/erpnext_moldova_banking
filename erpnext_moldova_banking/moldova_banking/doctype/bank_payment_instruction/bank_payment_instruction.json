@@ -1,0 +1,389 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-09-14 20:25:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "company",
+  "bank_provider",
+  "column_break_head",
+  "payment_date",
+  "status",
+  "section_payer",
+  "company_bank_account",
+  "source_iban",
+  "column_break_payer",
+  "source_product_type",
+  "payment_type",
+  "section_beneficiary",
+  "party_type",
+  "party",
+  "party_bank_account",
+  "column_break_ben",
+  "beneficiary_name",
+  "beneficiary_fiscal_code",
+  "destination_iban",
+  "destination_bic",
+  "residency_status",
+  "section_amount",
+  "amount",
+  "currency",
+  "column_break_amt",
+  "section_invoices",
+  "invoices",
+  "section_details",
+  "instruction_to_bank",
+  "section_bank",
+  "document_number",
+  "bank_instruction_id",
+  "column_break_bank",
+  "last_sync",
+  "bank_comment",
+  "api_error",
+  "section_accounting",
+  "payment_entry",
+  "linked_bank_transaction",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "BPI-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "BPI-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "default": "MAIB",
+   "fieldname": "bank_provider",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Bank",
+   "options": "MAIB",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "payment_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Payment Date",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Not Sent",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Bank Status",
+   "no_copy": 1,
+   "options": "Not Sent\nWaiting For Authorisation\nIn Process\nExecuted\nRejected\nAPI Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_payer",
+   "fieldtype": "Section Break",
+   "label": "Payer"
+  },
+  {
+   "fieldname": "company_bank_account",
+   "fieldtype": "Link",
+   "label": "Company Bank Account",
+   "options": "Bank Account",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "company_bank_account.iban",
+   "fieldname": "source_iban",
+   "fieldtype": "Data",
+   "label": "Payer IBAN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_payer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Operational",
+   "fieldname": "source_product_type",
+   "fieldtype": "Data",
+   "label": "Source Product Type",
+   "read_only": 1
+  },
+  {
+   "default": "NORMAL",
+   "fieldname": "payment_type",
+   "fieldtype": "Select",
+   "label": "Payment Type",
+   "options": "NORMAL\nURGENT"
+  },
+  {
+   "fieldname": "section_beneficiary",
+   "fieldtype": "Section Break",
+   "label": "Beneficiary"
+  },
+  {
+   "default": "Supplier",
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "Company\nCustomer\nSupplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Party",
+   "options": "party_type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "party_bank_account",
+   "fieldtype": "Link",
+   "label": "Party Bank Account",
+   "options": "Bank Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_ben",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "beneficiary_name",
+   "fieldtype": "Data",
+   "label": "Beneficiary Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "beneficiary_fiscal_code",
+   "fieldtype": "Data",
+   "label": "Beneficiary Fiscal Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "destination_iban",
+   "fieldtype": "Data",
+   "label": "Beneficiary IBAN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "destination_bic",
+   "fieldtype": "Data",
+   "label": "Beneficiary BIC",
+   "read_only": 1
+  },
+  {
+   "default": "R",
+   "fieldname": "residency_status",
+   "fieldtype": "Select",
+   "label": "Residency Status",
+   "options": "R\nN",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_amount",
+   "fieldtype": "Section Break",
+   "label": "Amount"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "non_negative": 1,
+   "options": "currency",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_amt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_invoices",
+   "fieldtype": "Section Break",
+   "label": "Purchase Invoices"
+  },
+  {
+   "fieldname": "invoices",
+   "fieldtype": "Table",
+   "label": "Purchase Invoices",
+   "options": "Bank Payment Instruction Invoice"
+  },
+  {
+   "fieldname": "section_details",
+   "fieldtype": "Section Break",
+   "label": "Payment Description"
+  },
+  {
+   "fieldname": "instruction_to_bank",
+   "fieldtype": "Small Text",
+   "label": "Instruction to Bank"
+  },
+  {
+   "fieldname": "section_bank",
+   "fieldtype": "Section Break",
+   "label": "Bank Response"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "document_number",
+   "fieldtype": "Data",
+   "label": "Document Number",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "bank_instruction_id",
+   "fieldtype": "Data",
+   "label": "Bank Instruction ID",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_bank",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Sync",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "bank_comment",
+   "fieldtype": "Small Text",
+   "label": "Bank Comment",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "api_error",
+   "fieldtype": "Small Text",
+   "label": "API Error",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_accounting",
+   "fieldtype": "Section Break",
+   "label": "Accounting"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "no_copy": 1,
+   "options": "Payment Entry",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "linked_bank_transaction",
+   "fieldtype": "Link",
+   "label": "Bank Transaction",
+   "no_copy": 1,
+   "options": "Bank Transaction",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Bank Payment Instruction",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-14 23:55:00.000000",
+ "modified_by": "Administrator",
+ "module": "Moldova Banking",
+ "name": "Bank Payment Instruction",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -18,6 +18,56 @@ from erpnext.accounts.doctype.bank_transaction.test_bank_transaction import (
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 TEST_ITEM_CODE = "_Test MD Banking Item"
+TEST_COMPANY_NAME = "_Test Company"
+TEST_COMPANY_ABBR = "_TC"
+
+
+def ensure_all_supplier_groups() -> str:
+	name = "All Supplier Groups"
+	if frappe.db.exists("Supplier Group", name):
+		return name
+	doc = frappe.get_doc(
+		{
+			"doctype": "Supplier Group",
+			"supplier_group_name": name,
+			"is_group": 1,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	return name
+
+
+def ensure_item_masters() -> None:
+	if not frappe.db.exists("UOM", "Nos"):
+		frappe.get_doc({"doctype": "UOM", "uom_name": "Nos"}).insert(ignore_permissions=True)
+	if not frappe.db.exists("Item Group", "All Item Groups"):
+		frappe.get_doc(
+			{
+				"doctype": "Item Group",
+				"item_group_name": "All Item Groups",
+				"is_group": 1,
+			}
+		).insert(ignore_permissions=True)
+
+
+def ensure_test_company(company_name: str = TEST_COMPANY_NAME, abbr: str = TEST_COMPANY_ABBR) -> str:
+	"""Ensure the standard ERPNext test company and chart-of-accounts exist."""
+	if frappe.db.exists("Company", company_name):
+		return company_name
+
+	company = frappe.get_doc(
+		{
+			"doctype": "Company",
+			"company_name": company_name,
+			"abbr": abbr,
+			"default_currency": "INR",
+			"country": "India",
+			"create_chart_of_accounts_based_on": "Standard Template",
+			"chart_of_accounts": "Standard",
+		}
+	)
+	company.insert(ignore_permissions=True)
+	return company.name
 
 
 def load_fixture(name: str) -> str:
@@ -67,6 +117,7 @@ def ensure_maib_bank(bank_name: str | None = None) -> str:
 
 def create_maib_company_bank_account(iban_account_id: str = "22516020091") -> tuple[str, str]:
 	"""Return (bank_account_name, gl_account_name) for a MAIB company account."""
+	company_name = ensure_test_company()
 	uniq = frappe.generate_hash(length=8)
 	gl_account = create_gl_account(f"_Test MAIB GL {uniq}")
 	bank_name = ensure_maib_bank(f"_Test MAIB Bank {uniq}")
@@ -83,10 +134,35 @@ def create_maib_company_bank_account(iban_account_id: str = "22516020091") -> tu
 		{
 			"iban": iban,
 			"is_company_account": 1,
-			"company": "_Test Company",
+			"company": company_name,
 		},
 	)
 	return bank_account, gl_account
+
+
+def create_party_bank_account(
+	party_type: str,
+	party: str,
+	iban: str = "MD24TEST0000000000000001",
+	swift: str | None = None,
+) -> str:
+	bank_name = ensure_maib_bank()
+	if swift:
+		frappe.db.set_value("Bank", bank_name, "swift_number", swift)
+	uniq = frappe.generate_hash(length=6)
+	doc = frappe.get_doc(
+		{
+			"doctype": "Bank Account",
+			"account_name": f"{party} BA {uniq}",
+			"bank": bank_name,
+			"party_type": party_type,
+			"party": party,
+			"is_company_account": 0,
+		}
+	)
+	doc.insert(ignore_permissions=True)
+	frappe.db.set_value("Bank Account", doc.name, "iban", iban)
+	return doc.name
 
 
 def enable_maib_settings(
@@ -94,32 +170,41 @@ def enable_maib_settings(
 	outward: bool = True,
 	auto_pe: bool = True,
 	api: bool = True,
+	company_name: str = TEST_COMPANY_NAME,
 ):
-	frappe.db.set_single_value(
-		"Moldova Banking Settings",
-		{
-			"maib_enabled": 1 if api else 0,
-			"maib_outward_payments_enabled": 1 if outward else 0,
-			"maib_auto_payment_entry_enabled": 1 if auto_pe else 0,
-			"maib_environment": "Test",
-			"maib_client_id": "test-client",
-			"maib_token_url": "https://example.test/token",
-			"maib_api_base_url": "https://example.test",
-			"maib_scope": "payments_gateway",
-		},
-	)
-	# Password field via set_encrypted_password if needed by get_access_token
-	try:
-		from frappe.utils.password import set_encrypted_password
+	ensure_test_company(company_name)
+	settings = frappe.get_single("Moldova Banking Settings")
+	settings.company_idno_field = settings.company_idno_field or "tax_id"
+	settings.customer_idno_field = settings.customer_idno_field or "tax_id"
+	settings.supplier_idno_field = settings.supplier_idno_field or "tax_id"
+	settings.bnm_rates_key = settings.bnm_rates_key or "test-bnm-rates-key"
+	settings.maib_enabled = 1 if api else 0
+	settings.maib_outward_payments_enabled = 1 if outward else 0
+	settings.maib_auto_payment_entry_enabled = 1 if auto_pe else 0
+	settings.maib_environment = "Test"
+	settings.maib_token_url = "https://example.test/token"
+	settings.maib_api_base_url = "https://example.test"
+	settings.maib_scope = "payments_gateway"
 
-		set_encrypted_password(
-			"Moldova Banking Settings",
-			"Moldova Banking Settings",
-			"test-secret",
-			"maib_client_secret",
+	company_row = None
+	for row in settings.get("maib_company_settings") or []:
+		if (row.get("company") if hasattr(row, "get") else getattr(row, "company", "")) == company_name:
+			company_row = row
+			break
+	if company_row is None:
+		company_row = settings.append(
+			"maib_company_settings",
+			{
+				"company": company_name,
+				"client_id": "test-client",
+				"client_secret": "test-secret",
+			},
 		)
-	except Exception:
-		pass
+	else:
+		company_row.client_id = "test-client"
+		company_row.client_secret = "test-secret"
+	settings.save(ignore_permissions=True)
+	return settings
 
 
 def ensure_supplier_tax_id(supplier: str = "_Test Supplier", tax_id: str = "1002600015382") -> str:

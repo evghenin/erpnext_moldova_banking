@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import frappe
@@ -26,6 +27,42 @@ from erpnext_moldova_banking.utils.bank_transaction_unique_key import make_trans
 from erpnext_moldova_banking.utils.transaction_ingest import ingest_transactions
 
 SETTINGS_DOCTYPE = "Moldova Banking Settings"
+
+
+def _normalize_company_selection(value: Any) -> list[str]:
+	"""Convert JSON-array / comma-separated / list values into plain company names."""
+	if value is None:
+		return []
+	if isinstance(value, str):
+		items = [value]
+	elif isinstance(value, (list, tuple, set)):
+		items = list(value)
+	else:
+		items = [value]
+
+	normalized: list[str] = []
+	for item in items:
+		if item is None:
+			continue
+		text = str(item).strip()
+		if not text:
+			continue
+		if text.startswith("[") and text.endswith("]"):
+			try:
+				parsed = json.loads(text)
+				normalized.extend(_normalize_company_selection(parsed))
+				continue
+			except Exception:
+				pass
+		if "," in text:
+			for part in text.split(","):
+				clean = part.strip()
+				if clean:
+					normalized.append(clean)
+			continue
+		normalized.append(text)
+	return normalized
+
 
 SCHEDULE_MINUTES = {
 	"Every 5 minutes": 5,
@@ -75,11 +112,16 @@ def _resolve_transfer_identity(row: dict[str, Any]) -> str:
 		if looks_like_transfer_identity(candidate):
 			return candidate
 
-	# Outward payments: DocumentNumber often equals Payment Order name.
+	# Outward payments: DocumentNumber is Bank Payment Instruction.document_number.
 	document_number = (row.get("document_number") or "").strip()
-	if document_number and frappe.db.exists("Payment Order", document_number):
+	if document_number:
 		instruction_id = (
-			frappe.db.get_value("Payment Order", document_number, "maib_instruction_id") or ""
+			frappe.db.get_value(
+				"Bank Payment Instruction",
+				{"document_number": document_number, "docstatus": ["<", 2]},
+				"bank_instruction_id",
+			)
+			or ""
 		).strip()
 		if looks_like_transfer_identity(instruction_id):
 			return instruction_id
@@ -95,7 +137,7 @@ def _is_existing_bank_transaction(bank_account: str, row: dict[str, Any]) -> boo
 		row.get("date"),
 		row.get("deposit"),
 		row.get("withdrawal"),
-		row.get("reference_number"),
+		row.get("document_number") or row.get("reference_number"),
 	)
 	return bool(frappe.db.exists("Bank Transaction", {"unique_key": unique_key}))
 
@@ -131,8 +173,9 @@ def enrich_single_row(bank_account: str, row: dict[str, Any], settings=None) -> 
 	if not identity:
 		return row
 
+	company = frappe.db.get_value("Bank Account", bank_account, "company") or ""
 	try:
-		details = query_transfer_details(identity, settings=settings, soft=True) or {}
+		details = query_transfer_details(identity, settings=settings, company=company, soft=True) or {}
 		frappe.clear_messages()
 	except Exception:
 		frappe.clear_messages()
@@ -185,16 +228,56 @@ def get_maib_provider_defaults(environment: str | None = None) -> dict[str, str]
 
 
 @frappe.whitelist()
-def test_maib_connection() -> dict[str, Any]:
+def test_maib_connection(company: str | None = None, companies: list[str] | str | None = None) -> dict[str, Any]:
 	_require_system_manager()
-	payload = get_access_token()
-	endpoints = payload.get("_endpoints") or resolve_maib_endpoints()
+
+	# Handle companies parameter: could be a list, JSON string, or comma-separated string
+	selection = companies if companies is not None else ([company] if company else [])
+	selection = _normalize_company_selection(selection)
+
+	settings_doc = frappe.get_single(SETTINGS_DOCTYPE)
+	if not getattr(settings_doc, "maib_enabled", 0) in (True, 1, "1", "true"):
+		frappe.throw(_("MAIB API is disabled in Moldova Banking Settings."))
+
+	rows = settings_doc.get("maib_company_settings") or []
+	if not selection:
+		selection = [row.company for row in rows if row.company]
+	if not selection:
+		frappe.throw(_("No companies configured for MAIB credentials."))
+
+	results: list[dict[str, Any]] = []
+	for company_name in selection:
+		try:
+			payload = get_access_token(company=company_name)
+			endpoints = resolve_maib_endpoints()
+			environment = settings_doc.maib_environment or "Test"
+			results.append({
+				"company": company_name,
+				"ok": True,
+				"token_type": payload.get("token_type"),
+				"expires_in": payload.get("expires_in"),
+				"api_base_url": endpoints.get("api_base_url"),
+				"environment": environment,
+			})
+		except frappe.ValidationError as e:
+			results.append({
+				"company": company_name,
+				"ok": False,
+				"error": str(e),
+			})
+
+	if not any(r.get("ok") for r in results):
+		frappe.throw(_("No active MAIB configuration found for the selected companies."))
+
+	ocurrent = next((r for r in results if r.get("ok")), {})
 	return {
 		"ok": True,
-		"token_type": payload.get("token_type"),
-		"expires_in": payload.get("expires_in"),
-		"api_base_url": endpoints.get("api_base_url"),
-		"environment": frappe.db.get_single_value(SETTINGS_DOCTYPE, "maib_environment"),
+		"companies": results,
+		"company": ocurrent.get("company"),
+		"token_type": ocurrent.get("token_type"),
+		"expires_in": ocurrent.get("expires_in"),
+		"api_base_url": ocurrent.get("api_base_url"),
+		"environment": ocurrent.get("environment"),
 	}
 
 
@@ -226,21 +309,38 @@ def download_maib_statement(
 	bank_account: str,
 	from_date: str,
 	to_date: str,
+	company: str | None = None,
+	companies: list[str] | str | None = None,
 ) -> dict[str, Any]:
 	"""Download and parse statement rows for the manual fetch dialog (no ingest)."""
 	_require_system_manager()
 	_validate_fetch_args(bank_account, from_date, to_date)
 
-	settings = frappe.get_single(SETTINGS_DOCTYPE)
-	if not settings.maib_enabled:
-		frappe.throw(_("Enable MAIB API in Moldova Banking Settings first."))
+	# Handle companies parameter: could be a list, JSON string, or comma-separated string
+	selection = companies if companies is not None else ([company] if company else [])
+	selection = _normalize_company_selection(selection)
+
+	settings_doc = frappe.get_single(SETTINGS_DOCTYPE)
+	if not getattr(settings_doc, "maib_enabled", 0) in (True, 1, "1", "true"):
+		frappe.throw(_("MAIB API is disabled in Moldova Banking Settings."))
+
+	rows = settings_doc.get("maib_company_settings") or []
+	if not selection:
+		selection = [row.company for row in rows if row.company]
+	if not selection:
+		frappe.throw(_("No companies configured for MAIB credentials."))
+
+	company_name = selection[0]
+	company_row = next((r for r in rows if (r.company or "") == company_name), None)
+	if company_row is None:
+		frappe.throw(_("No MAIB credentials configured for company {0}.").format(company_name))
 
 	account_id = resolve_api_account_id(bank_account)
 	xml_text = fetch_statement_xml(
 		account_id,
 		_to_yyyymmdd(from_date),
 		_to_yyyymmdd(to_date),
-		settings=settings,
+		company=company_name,
 	)
 	rows = parse_statement_xml(xml_text)
 	serialized: list[dict[str, Any]] = []
@@ -344,13 +444,14 @@ def fetch_maib_statement(
 	if not settings.maib_enabled:
 		frappe.throw(_("Enable MAIB API in Moldova Banking Settings first."))
 
+	company = frappe.db.get_value("Bank Account", bank_account, "company")
 	try:
 		account_id = resolve_api_account_id(bank_account)
 		xml_text = fetch_statement_xml(
 			account_id,
 			_to_yyyymmdd(from_date),
 			_to_yyyymmdd(to_date),
-			settings=settings,
+			company=company,
 		)
 		rows = parse_statement_xml(xml_text)
 		rows = enrich_new_rows_with_transfer_details(bank_account, rows, settings=settings)
@@ -421,12 +522,13 @@ def run_due_maib_statement_syncs():
 			continue
 		from_date, to_date = _auto_date_range(row)
 		try:
+			company = frappe.db.get_value("Bank Account", row.bank_account, "company")
 			account_id = resolve_api_account_id(row.bank_account)
 			xml_text = fetch_statement_xml(
 				account_id,
 				_to_yyyymmdd(from_date),
 				_to_yyyymmdd(to_date),
-				settings=settings,
+				company=company,
 			)
 			rows = parse_statement_xml(xml_text)
 			rows = enrich_new_rows_with_transfer_details(row.bank_account, rows, settings=settings)

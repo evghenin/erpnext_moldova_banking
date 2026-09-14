@@ -50,7 +50,7 @@ app_license = "mit"
 
 doctype_js = {
 	"Bank Transaction": "public/js/bank_transaction.js",
-	"Payment Order": "public/js/payment_order.js",
+	"Purchase Invoice": "public/js/purchase_invoice.js",
 }
 
 # Svg Icons
@@ -88,7 +88,8 @@ doctype_js = {
 # ------------
 
 # before_install = "erpnext_moldova_banking.install.before_install"
-# after_install = "erpnext_moldova_banking.install.after_install"
+after_install = "erpnext_moldova_banking.install.after_install"
+after_migrate = "erpnext_moldova_banking.install.after_migrate"
 
 # Uninstallation
 # ------------
@@ -159,9 +160,6 @@ doc_events = {
 			"erpnext_moldova_banking.utils.maib_payment_match.try_match_bank_transaction",
 		],
 	},
-	"Payment Order": {
-		"validate": "erpnext_moldova_banking.utils.maib_payment_order.validate_payment_order_for_maib",
-	},
 }
 
 # Scheduled Tasks
@@ -171,8 +169,8 @@ scheduler_events = {
 	"cron": {
 		"*/5 * * * *": [
 			"erpnext_moldova_banking.utils.maib_sync.run_due_maib_statement_syncs",
-			"erpnext_moldova_banking.utils.maib_payment_order.poll_open_maib_payment_orders",
-			"erpnext_moldova_banking.utils.maib_payment_match.process_executed_payment_orders",
+			"erpnext_moldova_banking.utils.bank_payment_instruction.poll_open_instructions",
+			"erpnext_moldova_banking.utils.maib_payment_match.process_executed_instructions",
 		],
 	},
 }
@@ -192,9 +190,9 @@ scheduler_events = {
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "erpnext_moldova_banking.task.get_dashboard_data"
-# }
+override_doctype_dashboards = {
+	"Purchase Invoice": "erpnext_moldova_banking.overrides.dashboard.get_purchase_invoice_dashboard",
+}
 
 # exempt linked doctypes from being automatically cancelled
 #
@@ -262,18 +260,6 @@ fixtures = [
 				"in",
 				[
 					"Bank Transaction-unique_key",
-					"Payment Order-maib_section",
-					"Payment Order-maib_status",
-					"Payment Order-maib_instruction_id",
-					"Payment Order-maib_document_number",
-					"Payment Order-maib_payment_type",
-					"Payment Order-maib_column_break",
-					"Payment Order-maib_residency_indicator",
-					"Payment Order-maib_last_sync",
-					"Payment Order-maib_bank_comment",
-					"Payment Order-maib_api_error",
-					"Payment Order-maib_payment_entry",
-					"Payment Order-maib_bank_transaction",
 				],
 			]
 		],

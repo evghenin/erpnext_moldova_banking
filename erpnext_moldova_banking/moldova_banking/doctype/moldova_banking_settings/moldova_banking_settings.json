@@ -1,11 +1,13 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-12-04 11:27:43.455130",
+ "creation": "2026-09-14 14:46:06.135781",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "idno_section",
+  "language",
+  "idno_column",
   "company_idno_field",
   "customer_idno_field",
   "supplier_idno_field",
@@ -18,13 +20,11 @@
   "rules_section",
   "automation_rules",
   "maib_api_tab",
+  "maib_company_settings",
   "maib_enabled",
   "maib_outward_payments_enabled",
   "maib_auto_payment_entry_enabled",
   "maib_environment",
-  "column_break_maib_auth",
-  "maib_client_id",
-  "maib_client_secret",
   "maib_urls_section",
   "maib_token_url",
   "maib_api_base_url",
@@ -65,8 +65,13 @@
  "fields": [
   {
    "fieldname": "idno_section",
-   "fieldtype": "Section Break",
-   "label": "IDNO"
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "language",
+   "fieldtype": "Link",
+   "label": "Language (Romanian)",
+   "options": "Language"
   },
   {
    "description": "Select field from Company used to store IDNO",
@@ -131,6 +136,12 @@
    "label": "MAIB API"
   },
   {
+   "fieldname": "maib_company_settings",
+   "fieldtype": "Table",
+   "label": "Company Settings",
+   "options": "MAIB Company Setting"
+  },
+  {
    "default": "0",
    "fieldname": "maib_enabled",
    "fieldtype": "Check",
@@ -139,7 +150,7 @@
   {
    "default": "0",
    "depends_on": "eval:doc.maib_enabled",
-   "description": "Allow sending Payment Orders to MAIB (ordinary transfers) and show Send to MAIB on Payment Order.",
+   "description": "Allow sending Bank Payment Instructions to MAIB (ordinary transfers).",
    "fieldname": "maib_outward_payments_enabled",
    "fieldtype": "Check",
    "label": "Enable Outward Payments"
@@ -147,7 +158,7 @@
   {
    "default": "0",
    "depends_on": "eval:doc.maib_enabled && doc.maib_outward_payments_enabled",
-   "description": "When a MAIB Payment Order is Executed and a matching Bank Transaction appears in the statement, automatically create a Payment Entry against the Purchase Invoice / Payment Request, reconcile it with the Bank Transaction, and close the Payment Request.",
+   "description": "When a Bank Payment Instruction is Executed and a matching Bank Transaction appears in the statement, automatically create a Payment Entry against the Purchase Invoice and reconcile it with the Bank Transaction.",
    "fieldname": "maib_auto_payment_entry_enabled",
    "fieldtype": "Check",
    "label": "Auto Payment Entry from Statement"
@@ -158,22 +169,6 @@
    "fieldtype": "Select",
    "label": "Environment",
    "options": "Test\nProduction"
-  },
-  {
-   "fieldname": "column_break_maib_auth",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "maib_client_id",
-   "fieldtype": "Data",
-   "label": "Client ID",
-   "mandatory_depends_on": "eval:doc.maib_enabled"
-  },
-  {
-   "fieldname": "maib_client_secret",
-   "fieldtype": "Password",
-   "label": "Client Secret",
-   "mandatory_depends_on": "eval:doc.maib_enabled"
   },
   {
    "fieldname": "maib_urls_section",
@@ -265,14 +260,14 @@
    "depends_on": "eval:doc.telegram_enabled",
    "fieldname": "telegram_notify_section",
    "fieldtype": "Section Break",
-   "label": "Notify about new transactions"
+   "label": "Notify Abount New Transactions"
   },
   {
    "default": "1",
    "depends_on": "eval:doc.telegram_enabled",
    "fieldname": "telegram_notify_file_import",
    "fieldtype": "Check",
-   "label": "Via file import"
+   "label": "Via Statement File Import"
   },
   {
    "default": "1",
@@ -317,7 +312,7 @@
    "depends_on": "eval:doc.telegram_enabled",
    "fieldname": "telegram_fields_section",
    "fieldtype": "Section Break",
-   "label": "Message fields"
+   "label": "Message Fields"
   },
   {
    "default": "1",
@@ -331,7 +326,7 @@
    "depends_on": "eval:doc.telegram_enabled",
    "fieldname": "telegram_field_party_name",
    "fieldtype": "Check",
-   "label": "Sender / Receiver name"
+   "label": "Sender / Receiver Name"
   },
   {
    "default": "1",
@@ -349,7 +344,7 @@
    "depends_on": "eval:doc.telegram_enabled",
    "fieldname": "telegram_field_amount",
    "fieldtype": "Check",
-   "label": "Amount (with currency)"
+   "label": "Amount"
   },
   {
    "default": "1",
@@ -363,7 +358,7 @@
    "depends_on": "eval:doc.telegram_enabled",
    "fieldname": "telegram_field_date",
    "fieldtype": "Check",
-   "label": "Payment date"
+   "label": "Payment Date"
   },
   {
    "fieldname": "excnage_rates_tab",
@@ -409,13 +404,18 @@
    "fieldname": "automation_submit",
    "fieldtype": "Check",
    "label": "Automatically Submit Document Entry"
+  },
+  {
+   "fieldname": "idno_column",
+   "fieldtype": "Column Break",
+   "label": "IDNO"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-29 23:30:00.000000",
+ "modified": "2026-09-14 19:17:38.497106",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",

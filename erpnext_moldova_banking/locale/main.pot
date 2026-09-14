@@ -1,0 +1,31 @@
+# Translations template for ERPNext Moldova Banking
+msgid ""
+msgstr ""
+"Project-Id-Version: ERPNext Moldova Banking\n"
+"Report-Msgid-Bugs-To: evgheni.nemerenco@gmail.com\n"
+"POT-Creation-Date: 2026-09-14 22:50+0000\n"
+"PO-Revision-Date: 2026-09-14 22:50+0000\n"
+"Last-Translator: Evgheni Nemerenco <evgheni.nemerenco@gmail.com>\n"
+"Language-Team: Romanian\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Payment for {types} as per {documents}"
+msgstr ""
+
+msgid "{bill_type} no. {bill_no} dated {bill_date}"
+msgstr ""
+
+msgid "products"
+msgstr ""
+
+msgid "invoice"
+msgstr ""
+
+msgid "N/N"
+msgstr ""
+
+msgid "N/D"
+msgstr ""

@@ -19,9 +19,12 @@ ORDINARY_PATH = "/api/transfers/mdl/ordinary"
 STATE_PATH = "/api/transfers/state-queries"
 DETAILS_PATH = "/api/transfers/details-queries"
 
-# Transfer Details / State APIs expect instruction IDs like 202607230000001
-# (yyyyMMdd + sequence). Statement ledger IDs (e.g. 21368….000002) are rejected.
-TRANSFER_IDENTITY_RE = re.compile(r"^\d{15}$")
+# Transfer Details accepts a bank-generated UUID transfer ID or a 15-digit
+# instruction ID. Statement ledger IDs (e.g. 21368….000002) are rejected.
+TRANSFER_IDENTITY_RE = re.compile(
+	r"^(?:\d{15}|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$",
+	re.IGNORECASE,
+)
 
 # Ordered labels for Transfer Details → Bank Transaction.description
 TRANSFER_DETAIL_LABELS = (
@@ -46,7 +49,7 @@ TRANSFER_DETAIL_LABELS = (
 	("TransferType", "Transfer Type / Status"),
 )
 
-# MAIB API status → app Payment Order.maib_status
+# MAIB API status → app Bank Payment Instruction.status
 STATUS_MAP = {
 	"RequiresAction": "Waiting For Authorisation",
 	"Waiting For Authorisation": "Waiting For Authorisation",
@@ -79,15 +82,22 @@ def _xml_headers(token: str) -> dict[str, str]:
 
 
 def looks_like_transfer_identity(value: str | None) -> bool:
-	"""True when value is a MAIB transfer/instruction id usable in details-queries."""
+	"""True for a MAIB UUID transfer ID or 15-digit instruction ID."""
 	value = (value or "").strip()
 	if not value or "." in value:
 		return False
 	return bool(TRANSFER_IDENTITY_RE.fullmatch(value))
 
 
-def _post_xml(path: str, body: str, settings=None, *, raise_http_error: bool = True) -> str | None:
-	token_payload = get_access_token(settings)
+def _post_xml(
+	path: str,
+	body: str,
+	settings=None,
+	*,
+	company: str | None = None,
+	raise_http_error: bool = True,
+) -> str | None:
+	token_payload = get_access_token(company=company, settings=settings)
 	token = token_payload["access_token"]
 	base = (token_payload.get("_endpoints") or resolve_maib_endpoints(settings))["api_base_url"].rstrip("/")
 	if not base:
@@ -139,7 +149,7 @@ def build_ordinary_payment_xml(payload: dict[str, Any]) -> str:
 		el("INSTRUCTION_TO_BANK", payload.get("details")),
 		el("PAYMENT_TYPE", payload.get("payment_type") or "NORMAL"),
 		el("SOURCE_ACCOUNT_NUMBER", payload.get("source_account_number")),
-		el("SOURCE_PRODUCT_TYPE", payload.get("source_product_type") or "CURRENT_ACCOUNT"),
+		el("SOURCE_PRODUCT_TYPE", payload.get("source_product_type") or "Operational"),
 		el("BENEFICIARY_NAME", payload.get("beneficiary_name")),
 		el("BENEFICIARY_FISCAL_CODE", payload.get("beneficiary_fiscal_code")),
 		el("DESTINATION_ACCOUNT_NUMBER", payload.get("destination_account_number")),
@@ -152,16 +162,26 @@ def build_ordinary_payment_xml(payload: dict[str, Any]) -> str:
 	return "".join(parts)
 
 
-def create_ordinary_payment(payload: dict[str, Any], settings=None) -> dict[str, str]:
+def create_ordinary_payment(
+	payload: dict[str, Any],
+	settings=None,
+	*,
+	company: str | None = None,
+) -> dict[str, str]:
 	xml_body = build_ordinary_payment_xml(payload)
-	response_text = _post_xml(ORDINARY_PATH, xml_body, settings=settings)
+	response_text = _post_xml(ORDINARY_PATH, xml_body, settings=settings, company=company)
 	instruction_id = _parse_instruction_id(response_text)
 	if not instruction_id:
 		frappe.throw(_("MAIB did not return INSTRUCTION_ID. Response: {0}").format(response_text[:500]))
 	return {"instruction_id": instruction_id, "raw": response_text}
 
 
-def query_instruction_states(instruction_ids: list[str], settings=None) -> list[dict[str, str]]:
+def query_instruction_states(
+	instruction_ids: list[str],
+	settings=None,
+	*,
+	company: str | None = None,
+) -> list[dict[str, str]]:
 	ids = [i for i in instruction_ids if i]
 	if not ids:
 		return []
@@ -171,7 +191,7 @@ def query_instruction_states(instruction_ids: list[str], settings=None) -> list[
 		body.append(f"<INSTRUCTION_ID>{escape(instruction_id)}</INSTRUCTION_ID>")
 	body.append("</root>")
 
-	response_text = _post_xml(STATE_PATH, "".join(body), settings=settings)
+	response_text = _post_xml(STATE_PATH, "".join(body), settings=settings, company=company)
 	return _parse_state_response(response_text)
 
 
@@ -179,6 +199,7 @@ def query_transfer_details(
 	transaction_id: str,
 	settings=None,
 	*,
+	company: str | None = None,
 	soft: bool = False,
 ) -> dict[str, str]:
 	"""Fetch full transfer details by transfer/instruction id.
@@ -198,7 +219,11 @@ def query_transfer_details(
 		"</root>"
 	)
 	response_text = _post_xml(
-		DETAILS_PATH, body, settings=settings, raise_http_error=not soft
+		DETAILS_PATH,
+		body,
+		settings=settings,
+		company=company,
+		raise_http_error=not soft,
 	)
 	if not response_text:
 		return {}

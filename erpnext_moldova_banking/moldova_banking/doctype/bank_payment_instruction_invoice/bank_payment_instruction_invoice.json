@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "creation": "2026-09-14 22:10:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "purchase_invoice",
+  "reference_description",
+  "outstanding_amount",
+  "allocated_amount"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Purchase Invoice",
+   "options": "Purchase Invoice",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "reference_description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Reference"
+  },
+  {
+   "columns": 2,
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Outstanding",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "allocated_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Allocated",
+   "non_negative": 1,
+   "options": "currency",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-14 23:42:00.000000",
+ "modified_by": "Administrator",
+ "module": "Moldova Banking",
+ "name": "Bank Payment Instruction Invoice",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

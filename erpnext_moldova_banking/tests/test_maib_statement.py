@@ -16,17 +16,44 @@ class TestMaibStatementParse(FrappeTestCase):
 		credit, debit = rows
 		self.assertEqual(credit["deposit"], 1351.28)
 		self.assertEqual(credit["withdrawal"], 0)
-		self.assertEqual(credit["reference_number"], "987654321")
+		self.assertEqual(credit["reference_number"], "123456789")
+		self.assertEqual(credit["document_number"], "123456789")
+		self.assertEqual(credit["transaction_id"], "987654321")
 		self.assertEqual(credit["cp_idno"], "1506601000031")
 		self.assertEqual(str(credit["date"]), "2011-02-01")
-		self.assertIn("Counterparty:", credit["description"])
-		self.assertIn("Document Number:", credit["description"])
+		self.assertEqual(
+			credit["description"],
+			"Invoice payment\n"
+			"\n"
+			"Amount: 1351.28\n"
+			"Document Number: 123456789\n"
+			"Date Written: 01.02.2011\n"
+			"Payer: (R)SPRING LIMITED\n"
+			"Payer IDNO: 1506601000031\n"
+			"Transaction ID: 987654321\n"
+			"Currency: MDL\n"
+			"Credit/Debit: C",
+		)
 
 		self.assertEqual(debit["deposit"], 0)
 		self.assertEqual(debit["withdrawal"], 10.0)
-		self.assertEqual(debit["reference_number"], "111")
+		self.assertEqual(debit["reference_number"], "999")
+		self.assertEqual(debit["document_number"], "999")
+		self.assertEqual(debit["transaction_id"], "111")
 		self.assertEqual(debit["cp_idno"], "1002600015382")
-		self.assertIn("Counterparty:", debit["description"])
+		self.assertEqual(
+			debit["description"],
+			"Outgoing\n"
+			"\n"
+			"Amount: 10.00\n"
+			"Document Number: 999\n"
+			"Date Written: 01.02.2011\n"
+			"Receiver: X\n"
+			"Receiver IDNO: 1002600015382\n"
+			"Transaction ID: 111\n"
+			"Currency: MDL\n"
+			"Credit/Debit: D",
+		)
 
 	def test_parse_live_empty_root(self):
 		rows = parse_statement_xml(load_fixture("statement_empty_root.xml"))

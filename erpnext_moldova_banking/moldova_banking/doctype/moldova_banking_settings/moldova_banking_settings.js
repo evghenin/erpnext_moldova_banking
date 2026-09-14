@@ -49,36 +49,36 @@ frappe.ui.form.on("Moldova Banking Settings", {
 			frappe.msgprint(__("Please save Moldova Banking Settings before testing the connection."));
 			return;
 		}
-		const btn = frm.get_field("test_maib_connection")?.$input;
-		if (btn) btn.prop("disabled", true);
-
-		frappe
-			.call({
-				method: "erpnext_moldova_banking.utils.maib_sync.test_maib_connection",
-				freeze: true,
-				freeze_message: __("Testing MAIB connection..."),
-			})
-			.then((r) => {
-				const msg = r.message || {};
-				frappe.msgprint({
-					title: __("MAIB Connection OK"),
-					indicator: "green",
-					message: __(
-						"Authenticated successfully ({0}). Token expires in {1}s.<br>API Base URL: {2}",
-						[msg.environment || "", msg.expires_in || "", msg.api_base_url || ""]
-					),
-				});
-			})
-			.finally(() => {
-				if (btn) btn.prop("disabled", false);
+		const companies = get_enabled_maib_companies(frm);
+		if (!companies.length) {
+			frappe.msgprint({
+				title: __("MAIB configuration missing"),
+				indicator: "red",
+				message: __("Add at least one configured MAIB company in Company Settings before testing the connection."),
 			});
+			return;
+		}
+		open_maib_company_selection_dialog(frm, {
+			title: __("Test MAIB Connection"),
+			action: "test",
+			companies,
+		});
 	},
 	fetch_maib_statement(frm) {
 		if (frm.is_dirty()) {
 			frappe.msgprint(__("Please save Moldova Banking Settings before fetching statements."));
 			return;
 		}
-		open_maib_fetch_dialog(frm);
+		const companies = get_enabled_maib_companies(frm);
+		if (!companies.length) {
+			frappe.msgprint({
+				title: __("MAIB configuration missing"),
+				indicator: "red",
+				message: __("Add at least one configured MAIB company in Company Settings before fetching statements."),
+			});
+			return;
+		}
+		open_maib_fetch_dialog(frm, companies.map((c) => c.value));
 	},
 	telegram_enabled(frm) {
 		if (!frm.doc.telegram_enabled) {
@@ -131,10 +131,95 @@ frappe.ui.form.on("Moldova Banking Settings", {
 	},
 });
 
-function open_maib_fetch_dialog(frm) {
+function get_enabled_maib_companies(frm) {
+	const rows = frm.doc.maib_company_settings || [];
+	return rows
+		.filter((row) => row.company)
+		.map((row) => ({
+			label: row.company,
+			value: row.company,
+		}));
+}
+
+function open_maib_company_selection_dialog(frm, { title, action, companies }) {
+	const dialog = new frappe.ui.Dialog({
+		title: title,
+		fields: [
+			{
+				fieldname: "companies",
+				label: __("Companies"),
+				fieldtype: "MultiSelect",
+				reqd: 1,
+				options: companies.map((c) => c.value),
+			},
+		],
+		primary_action_label: action === "test" ? __("Test") : __("Continue"),
+		primary_action(values) {
+			const selected = Array.isArray(values.companies)
+				? values.companies
+				: (values.companies || "").split(",").map((s) => s.trim()).filter(Boolean);
+			if (!selected.length) {
+				frappe.msgprint(__("Please select at least one company."));
+				return;
+			}
+			dialog.hide();
+			if (action === "test") {
+				frappe.call({
+					method: "erpnext_moldova_banking.utils.maib_sync.test_maib_connection",
+					args: { companies: selected },
+					freeze: true,
+					freeze_message: __("Testing MAIB connection..."),
+				}).then((r) => {
+					const payload = r.message || {};
+					const normalizeCompany = (value) => {
+						if (Array.isArray(value)) {
+							return value.map(normalizeCompany).filter(Boolean).join(", ");
+						}
+						if (typeof value !== "string") return value == null ? "" : String(value);
+						const text = value.trim();
+						if (!text) return "";
+						if (text.startsWith("[") && text.endsWith("]")) {
+							try {
+								return normalizeCompany(JSON.parse(text));
+							} catch (e) {
+								return text;
+							}
+						}
+						return text;
+					};
+					const results = Array.isArray(payload.companies)
+						? payload.companies
+						: [{ company: payload.company || selected[0], expires_in: payload.expires_in || "", api_base_url: payload.api_base_url || "" }];
+					const html = results.map((row) => {
+						const company = normalizeCompany(row.company || "Company");
+						return `<li><b>${company}</b>: ${__("Authenticated successfully")}. ${__("Token expires in")} ${row.expires_in || "-"}s. API Base URL: ${row.api_base_url || "-"}</li>`;
+					}).join("");
+					frappe.msgprint({
+						title: __("MAIB Connection OK"),
+						indicator: "green",
+						message: `<ul>${html}</ul>`,
+					});
+				});
+				return;
+			}
+			open_maib_fetch_dialog(frm, selected);
+		},
+	});
+	dialog.show();
+}
+
+function open_maib_fetch_dialog(frm, selected_companies) {
 	const dialog = new frappe.ui.Dialog({
 		title: __("Fetch MAIB Statement"),
 		fields: [
+			{
+				fieldname: "company",
+				label: __("Company"),
+				fieldtype: "Select",
+				reqd: 1,
+				options: selected_companies,
+				default: selected_companies[0] || "",
+			},
 			{
 				fieldname: "from_date",
 				label: __("From Date"),
@@ -155,11 +240,15 @@ function open_maib_fetch_dialog(frm) {
 				fieldtype: "Link",
 				options: "Bank Account",
 				reqd: 1,
-				get_query: () => ({
-					filters: {
-						is_company_account: 1,
-					},
-				}),
+				get_query: () => {
+					const selected_company = dialog.get_value("company");
+					return {
+						filters: {
+							is_company_account: 1,
+							company: selected_company || ["!", ""],
+						},
+					};
+				},
 				onchange: function () {
 					const bank_account = dialog.get_value("bank_account");
 					if (!bank_account) return;
@@ -182,8 +271,9 @@ function open_maib_fetch_dialog(frm) {
 		],
 		primary_action_label: __("Run"),
 		primary_action(values) {
-			if (!values.from_date || !values.to_date || !values.bank_account) {
-				frappe.msgprint(__("Please fill all required fields."));
+			const selected = [values.company].filter(Boolean);
+			if (!selected.length || !values.from_date || !values.to_date || !values.bank_account) {
+				frappe.msgprint(__("Please select a company and fill all required fields."));
 				return;
 			}
 
@@ -214,6 +304,8 @@ function open_maib_fetch_dialog(frm) {
 				}
 			};
 
+			const company_filter = selected[0];
+
 			const fail = () => {
 				dialog.clear_message();
 				dialog.$body.removeClass("hide");
@@ -230,6 +322,8 @@ function open_maib_fetch_dialog(frm) {
 						bank_account: values.bank_account,
 						from_date: values.from_date,
 						to_date: values.to_date,
+						company: company_filter,
+						companies: selected,
 					},
 				})
 				.then(async (r) => {

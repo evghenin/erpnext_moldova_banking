@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import requests
@@ -12,16 +13,17 @@ from frappe import _
 from frappe.utils.password import get_decrypted_password
 
 SETTINGS_DOCTYPE = "Moldova Banking Settings"
+LEGACY_TEST_TOKEN_URL = "https://test-business-sso.maib.md/api/connect/token"
 
 MAIB_DEFAULTS = {
 	"Test": {
-		"token_url": "https://test-business-sso.maib.md/api/connect/token",
+		"token_url": "https://test-business-sso.maib.md/connect/token",
 		"api_base_url": "https://test-bb-transfers-gateway.maib.md",
 		"scope": "payments_gateway",
 	},
 	"Production": {
-		"token_url": "https://business-sso.maib.md/api/connect/token",
-		"api_base_url": "https://api-gateway.maib.md",
+		"token_url": "https://business-sso.maib.md/connect/token",
+		"api_base_url": "https://business-api.maib.md",
 		"scope": "payments_gateway",
 	},
 }
@@ -31,7 +33,59 @@ BALANCE_PATH = "/api/account-balance-queries"
 
 
 def get_maib_settings():
+	"""Get global MAIB settings (environment, endpoints, enabled flag)."""
 	return frappe.get_single(SETTINGS_DOCTYPE)
+
+
+def _normalize_company_name(value: Any) -> Any:
+	"""Normalize values coming from Frappe MultiSelect / JSON serialization."""
+	if value is None:
+		return ""
+	if isinstance(value, (list, tuple, set)):
+		normalized = [_normalize_company_name(item) for item in value]
+		normalized = [item for item in normalized if item not in (None, "")]
+		if len(normalized) == 1:
+			return normalized[0]
+		return normalized
+	if isinstance(value, str):
+		candidate = value.strip()
+		if not candidate:
+			return ""
+		if candidate.startswith("[") and candidate.endswith("]"):
+			try:
+				loaded = json.loads(candidate)
+				return _normalize_company_name(loaded)
+			except Exception:
+				pass
+		if "," in candidate:
+			parts = [part.strip() for part in candidate.split(",") if part.strip()]
+			if len(parts) == 1:
+				return parts[0]
+			return parts
+		return candidate
+	return str(value).strip()
+
+
+def get_company_maib_settings(company: str | None = None):
+	"""Get company-specific MAIB credentials (client_id, client_secret), or None if not configured."""
+	if not company:
+		return None
+	settings = frappe.get_single(SETTINGS_DOCTYPE)
+	normalized_candidates = _normalize_company_name(company)
+	if isinstance(normalized_candidates, list):
+		candidate_set = {str(item).strip() for item in normalized_candidates if str(item).strip()}
+	else:
+		candidate_set = {str(normalized_candidates).strip()} if str(normalized_candidates).strip() else set()
+	for row in settings.get("maib_company_settings") or []:
+		row_company_raw = getattr(row, "company", "")
+		if hasattr(row, "get"):
+			row_company_raw = row.get("company", row_company_raw)
+		row_company = _normalize_company_name(row_company_raw)
+		row_values = row_company if isinstance(row_company, list) else [row_company]
+		row_values = [str(item).strip() for item in row_values if str(item).strip()]
+		if any(item in candidate_set for item in row_values):
+			return row
+	return None
 
 
 def get_maib_defaults(environment: str | None = None) -> dict[str, str]:
@@ -39,24 +93,53 @@ def get_maib_defaults(environment: str | None = None) -> dict[str, str]:
 
 
 def resolve_maib_endpoints(settings=None) -> dict[str, str]:
+	"""Resolve MAIB endpoints from global settings.
+
+	Accepts either the actual DocType object or a dict-like settings payload for
+	unit tests and compatibility callers.
+	"""
 	settings = settings or get_maib_settings()
-	defaults = get_maib_defaults(settings.maib_environment or "Test")
+	environment = (getattr(settings, "maib_environment", None) or settings.get("maib_environment") or "Test") if hasattr(settings, "get") else (getattr(settings, "maib_environment", None) or "Test")
+	defaults = get_maib_defaults(environment)
+	token_url = (getattr(settings, "maib_token_url", None) or settings.get("maib_token_url") or "").strip() if hasattr(settings, "get") else (getattr(settings, "maib_token_url", None) or "").strip()
+	if environment == "Test" and token_url.rstrip("/") == LEGACY_TEST_TOKEN_URL:
+		token_url = defaults.get("token_url") or ""
+	api_base_url = (getattr(settings, "maib_api_base_url", None) or settings.get("maib_api_base_url") or "").strip() if hasattr(settings, "get") else (getattr(settings, "maib_api_base_url", None) or "").strip()
+	scope = (getattr(settings, "maib_scope", None) or settings.get("maib_scope") or "").strip() if hasattr(settings, "get") else (getattr(settings, "maib_scope", None) or "").strip()
 	return {
-		"token_url": (settings.maib_token_url or "").strip() or defaults.get("token_url") or "",
-		"api_base_url": (settings.maib_api_base_url or "").strip() or defaults.get("api_base_url") or "",
-		"scope": (settings.maib_scope or "").strip() or defaults.get("scope") or "payments_gateway",
+		"token_url": token_url or defaults.get("token_url") or "",
+		"api_base_url": api_base_url or defaults.get("api_base_url") or "",
+		"scope": scope or defaults.get("scope") or "payments_gateway",
 	}
 
 
-def get_maib_client_secret(settings=None) -> str:
-	settings = settings or get_maib_settings()
-	try:
-		return (
-			get_decrypted_password(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE, "maib_client_secret", raise_exception=False)
-			or ""
-		)
-	except Exception:
-		return ""
+def get_maib_client_secret(company: str | None = None) -> str:
+	"""Get company-specific client secret."""
+	if company:
+		company_row = get_company_maib_settings(company)
+		if company_row:
+			value = getattr(company_row, "client_secret", None) or ""
+			# Password fields in child table rows may be encrypted; attempt decryption
+			if value:
+				try:
+					from frappe.utils.password import get_decrypted_password
+					# Try to get decrypted value from the child table row
+					# For child tables, the row is typically an object with .name attribute
+					if hasattr(company_row, "name"):
+						decrypted = get_decrypted_password(
+							"MAIB Company Setting",
+							company_row.name,
+							"client_secret",
+							raise_exception=False
+						)
+						if decrypted:
+							return str(decrypted)
+				except Exception:
+					pass
+				# If not encrypted or decryption failed, use the value as-is
+				if value:
+					return str(value)
+	return ""
 
 
 def iban_to_maib_account_id(iban: str | None) -> str:
@@ -76,14 +159,43 @@ def resolve_api_account_id(bank_account: str) -> str:
 	return account_id
 
 
-def get_access_token(settings=None) -> dict[str, Any]:
-	settings = settings or get_maib_settings()
-	if not settings.maib_enabled:
+def get_access_token(company: str | None = None, settings=None) -> dict[str, Any]:
+	"""Get MAIB access token using per-company credentials if available.
+
+	For backward compatibility, also accepts a settings parameter (ignored if company is provided).
+	"""
+	# For backward compatibility with old code that passes settings directly
+	if settings and not company:
+		# If settings parameter is provided (legacy), extract company if available
+		if hasattr(settings, "company"):
+			company = getattr(settings, "company", None)
+	company = _normalize_company_name(company)
+	if isinstance(company, list):
+		company = company[0] if company else None
+	company = str(company).strip() if company is not None else None
+
+	global_settings = get_maib_settings()
+	if not getattr(global_settings, "maib_enabled", 0) in (True, 1, "1", "true"):
 		frappe.throw(_("MAIB API is disabled in Moldova Banking Settings."))
 
-	client_id = (settings.maib_client_id or "").strip()
-	client_secret = get_maib_client_secret(settings)
-	endpoints = resolve_maib_endpoints(settings)
+	# Get company-specific credentials
+	client_id = None
+	client_secret = None
+
+	if company:
+		company_row = get_company_maib_settings(company)
+		if company_row:
+			# Try to access fields as attributes or dict keys
+			client_id = getattr(company_row, "client_id", "")
+			if not client_id and isinstance(company_row, dict):
+				client_id = company_row.get("client_id", "")
+			client_id = str(client_id or "").strip()
+			client_secret = get_maib_client_secret(company)
+
+	if not client_id or not client_secret:
+		frappe.throw(_("MAIB credentials are not configured for company {0}.").format(company or "(unknown)"))
+
+	endpoints = resolve_maib_endpoints()
 
 	if not client_id or not client_secret:
 		frappe.throw(_("MAIB Client ID and Client Secret are required."))
@@ -119,6 +231,7 @@ def get_access_token(settings=None) -> dict[str, Any]:
 		frappe.throw(_("MAIB token response did not include access_token."))
 
 	payload["_endpoints"] = endpoints
+	payload["_environment"] = global_settings.maib_environment or "Test"
 	return payload
 
 
@@ -146,13 +259,12 @@ def fetch_statement_xml(
 	account_id: str,
 	from_yyyymmdd: str,
 	to_yyyymmdd: str,
-	settings=None,
+	company: str | None = None,
 	product: str = "Operational",
 ) -> str:
-	settings = settings or get_maib_settings()
-	token_payload = get_access_token(settings)
+	token_payload = get_access_token(company=company)
 	token = token_payload["access_token"]
-	base = (token_payload.get("_endpoints") or resolve_maib_endpoints(settings))["api_base_url"].rstrip("/")
+	base = (token_payload.get("_endpoints") or resolve_maib_endpoints())["api_base_url"].rstrip("/")
 	if not base:
 		frappe.throw(_("MAIB API Base URL is required."))
 

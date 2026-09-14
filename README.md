@@ -24,9 +24,9 @@ Single DocType that groups all configuration:
 - Stepped progress UI for manual fetch (list → per-transaction details/create)
 
 #### MAIB outward payments
-- Send Ordinary MDL transfers from **Payment Order**
-- Status polling (`Waiting` / `In Process`)
-- Optional **Auto Payment Entry from Statement**: match executed PO ↔ BT → PE → reconcile
+- **Bank Payment Instruction** holds payment date, beneficiary, IBAN, and description
+- Create from Purchase Invoice, send Ordinary MDL transfers, poll status
+- Optional **Auto Payment Entry from Statement**: match executed instruction ↔ Bank Transaction → Payment Entry → reconcile
 
 #### DBO / file import
 - **Moldova Bank Statement Import** for MAIB DBO statement files (current/card accounts)

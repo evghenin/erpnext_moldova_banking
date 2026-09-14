@@ -9,6 +9,8 @@ from typing import Any
 
 from frappe.utils import flt
 
+from erpnext_moldova_banking.providers.maib.description import build_maib_transaction_description
+
 
 def _local(tag: str) -> str:
 	if "}" in tag:
@@ -105,37 +107,19 @@ def _parse_transaction(txn: ET.Element, posting_date, currency: str) -> dict[str
 		# Debit / unknown with amount → withdrawal
 		withdrawal = amount
 
-	desc_lines = []
-	if payment_destination:
-		desc_lines.append(payment_destination)
-		desc_lines.append("")
-	if amount:
-		desc_lines.append(f"Amount: {amount:.2f}")
-	if currency:
-		desc_lines.append(f"Currency: {currency}")
-	if credit_or_debit:
-		desc_lines.append(f"Credit/Debit: {credit_or_debit}")
-	if document_number:
-		desc_lines.append(f"Document Number: {document_number}")
-	if transaction_id:
-		desc_lines.append(f"Transaction ID: {transaction_id}")
-	if cp_name:
-		desc_lines.append(f"Counterparty: {cp_name}")
-	if cp_idno:
-		desc_lines.append(f"Counterparty IDNO: {cp_idno}")
-
-	return {
+	row = {
 		"date": posting_date,
 		"deposit": deposit,
 		"withdrawal": withdrawal,
 		"amount": amount,
 		"payment_destination": payment_destination,
 		"credit_or_debit": credit_or_debit,
-		"description": "\n".join(desc_lines).strip(),
-		"reference_number": transaction_id or document_number,
+		"reference_number": document_number or transaction_id,
 		"currency": currency or None,
 		"cp_name": cp_name,
 		"cp_idno": cp_idno,
 		"document_number": document_number,
 		"transaction_id": transaction_id,
 	}
+	row["description"] = build_maib_transaction_description(row)
+	return row

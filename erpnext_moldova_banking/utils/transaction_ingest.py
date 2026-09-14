@@ -87,7 +87,10 @@ def _ingest_one(bank_account, company, currency, row, submit, stats, source="api
 	doc.deposit = flt(row.get("deposit") or 0)
 	doc.withdrawal = flt(row.get("withdrawal") or 0)
 	doc.description = row.get("description") or ""
-	doc.reference_number = row.get("reference_number") or ""
+	if source == "api":
+		doc.reference_number = row.get("document_number") or row.get("reference_number") or ""
+	else:
+		doc.reference_number = row.get("reference_number") or ""
 	if currency or row.get("currency"):
 		doc.currency = row.get("currency") or currency
 	if party_type and party:
