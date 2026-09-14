@@ -1,21 +1,28 @@
 ### ERPNext Moldova Banking
 
-Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements & payments), DBO file import, bank transaction automation, BNM FX rates, and Telegram notifications.
+Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements and payments), DBO file import, bank transaction automation, BNM FX rates, and Telegram notifications.
 
-Requires **ERPNext v15** / Frappe v15.
+**Current version: 2.0.0** (ERPNext v15 / Frappe v15).
+
+| Line | What it is |
+|---|---|
+| Tag [`v1.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v1.0.0) | Last release before MAIB API (file import, automation, BNM) |
+| Branches `master` and `v2` | v2.0.0 development (MAIB API + Bank Payment Instruction) |
 
 ### Features
 
 #### Moldova Banking Settings
-Single DocType that groups all configuration:
+Single DocType that groups configuration:
 
 | Tab | Purpose |
 |---|---|
-| **IDNO** | Map Company / Customer / Supplier tax-id fields for party matching |
+| **IDNO** | Map Company / Customer / Supplier tax-id fields for party matching; Romanian language for payment descriptions |
 | **Automation** | Rules that create Payment Entry / Journal Entry from submitted Bank Transactions |
-| **MAIB API** | OAuth credentials, statement sync, outward payments, auto Payment Entry from statement |
+| **MAIB API** | Per-company OAuth credentials, Test/Production URLs, statement sync, outward payments, auto Payment Entry from statement |
 | **Telegram** | Bot notifications for new Bank Transactions (filters + message fields) |
 | **Exchange Rates** | BNM rates API key and Currency Exchange Settings helper |
+
+Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, and Supplier. The field is created on migrate/install if another Moldova app has not already added it.
 
 #### MAIB statement sync
 - Manual **Fetch Statement** and scheduled sync per bank account
@@ -24,8 +31,9 @@ Single DocType that groups all configuration:
 - Stepped progress UI for manual fetch (list → per-transaction details/create)
 
 #### MAIB outward payments
-- **Bank Payment Instruction** holds payment date, beneficiary, IBAN, and description
-- Create from Purchase Invoice, send Ordinary MDL transfers, poll status
+- **Bank Payment Instruction** (not Payment Order): payment date, payer IBAN, beneficiary, residency, amount, and bank comments
+- Link one or more **Purchase Invoices**; create from a Purchase Invoice
+- Send Ordinary MDL transfers, poll status
 - Optional **Auto Payment Entry from Statement**: match executed instruction ↔ Bank Transaction → Payment Entry → reconcile
 
 #### DBO / file import
@@ -47,21 +55,32 @@ Header format: `Incoming Bank Transaction ACC-BTN-…` / `Outgoing Bank Transact
 #### BNM exchange rates
 Protected endpoint + helpers to regenerate the API key and wire ERPNext **Currency Exchange Settings**.
 
-### Installation
+### Installation (v2.0.0)
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app https://github.com/evghenin/erpnext_moldova_banking.git --branch master
+bench get-app https://github.com/evghenin/erpnext_moldova_banking.git --branch v2
 bench --site <site> install-app erpnext_moldova_banking
 bench --site <site> migrate
 ```
 
-Open **Moldova Banking Settings** and configure the tabs you need (MAIB Test/Production, Telegram bot token & chat id, etc.).
+`--branch master` currently tracks the same v2.0.0 line.
+
+Open **Moldova Banking Settings** and configure the tabs you need (MAIB company credentials, Test/Production, Telegram bot token & chat id, etc.).
+
+### Upgrade from v1.0.0
+
+1. Update the app to `v2` (or `master`).
+2. Run `bench --site <site> migrate`.
+
+Migrate adds MAIB/BPI schema and runs a single patch that removes v1 **POS Clearing Rule** and the orphan **ERPNext Moldova Banking** module. There is no Payment Order field migration: v1 never had MAIB custom fields on Payment Order.
 
 ### Tests
 
+Use a **dedicated test site and database** only. Do not run tests against development, staging, production, or any site that holds user data.
+
 ```bash
-bench --site <site> run-tests --app erpnext_moldova_banking
+bench --site <dedicated-test-site> run-tests --app erpnext_moldova_banking
 ```
 
 ### Contributing
