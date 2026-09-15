@@ -23,7 +23,7 @@ from erpnext_moldova_banking.providers.maib.payments import (
 	query_transfer_details,
 )
 from erpnext_moldova_banking.providers.maib.statement import parse_statement_xml
-from erpnext_moldova_banking.utils.bank_transaction_unique_key import make_transaction_unique_key
+from erpnext_moldova_banking.utils.bank_transaction_unique_key import find_existing_bank_transaction
 from erpnext_moldova_banking.utils.transaction_ingest import ingest_transactions
 
 SETTINGS_DOCTYPE = "Moldova Banking Settings"
@@ -130,16 +130,17 @@ def _resolve_transfer_identity(row: dict[str, Any]) -> str:
 
 
 def _is_existing_bank_transaction(bank_account: str, row: dict[str, Any]) -> bool:
-	company = frappe.db.get_value("Bank Account", bank_account, "company")
-	unique_key = make_transaction_unique_key(
-		company,
-		bank_account,
-		row.get("date"),
-		row.get("deposit"),
-		row.get("withdrawal"),
-		row.get("document_number") or row.get("reference_number"),
+	return bool(
+		find_existing_bank_transaction(
+			bank_account=bank_account,
+			posting_date=row.get("date"),
+			reference_number=row.get("document_number") or row.get("reference_number"),
+			party_name=row.get("cp_name"),
+			deposit=row.get("deposit"),
+			withdrawal=row.get("withdrawal"),
+			currency=row.get("currency"),
+		)
 	)
-	return bool(frappe.db.exists("Bank Transaction", {"unique_key": unique_key}))
 
 
 def _company_party_context(bank_account: str) -> dict[str, str]:

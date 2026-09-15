@@ -37,6 +37,7 @@ class TestTransactionIngest(FrappeTestCase):
 			"description": "Test line",
 			"reference_number": f"INGEST-{frappe.generate_hash(length=8)}",
 			"currency": "INR",
+			"cp_name": "Test Payer SRL",
 			"cp_idno": ensure_supplier_tax_id(),
 		}
 		stats1 = ingest_transactions(self.bank_account, [row], submit=False)
