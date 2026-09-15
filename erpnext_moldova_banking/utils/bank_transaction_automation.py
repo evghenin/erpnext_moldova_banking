@@ -1,4 +1,3 @@
-from pydoc import doc
 import frappe
 from frappe.utils import flt
 
@@ -18,29 +17,26 @@ def normalize_string(value: str) -> str:
     )
 
 
-def handle_bank_transaction(doc, method=None):
-    """Match Automation rules. Sets frappe.flags.moldova_bt_automation_matched."""
-    frappe.flags.moldova_bt_automation_matched = False
+def matches_automation_rule(doc) -> bool:
+    """True when an enabled Moldova Banking automation rule claims this Bank Transaction."""
+    return bool(get_matching_automation_rule(doc))
 
-    # 1. Load settings
+
+def get_matching_automation_rule(doc):
     settings = frappe.get_single("Moldova Banking Settings")
-
     if not settings.enable_automation:
-        return False
-
-    # Defensive checks
+        return None
     if not doc.company or not doc.bank_account or not doc.description:
-        return False
+        return None
 
     normalized_description = normalize_string(doc.description)
 
-    # 2. Iterate over enabled clearing rules
     for rule in settings.automation_rules:
         if rule.disabled:
             continue
-
-        # 3. Match company & bank
         if rule.company != doc.company:
+            continue
+        if not rule.description_pattern:
             continue
 
         ba = frappe.get_doc("Bank Account", doc.bank_account)
@@ -48,41 +44,42 @@ def handle_bank_transaction(doc, method=None):
             continue
 
         ba_account = frappe.get_doc("Account", ba.account)
-
         second_account = None
         if rule.document_type == "Journal Entry" and rule.second_account:
             second_account = frappe.get_doc("Account", rule.second_account)
 
-        # Currency guard
         if second_account and ba_account.account_currency != second_account.account_currency:
             continue
 
-        if not rule.description_pattern:
-            continue
-
-        # 4. Normalize pattern
         normalized_pattern = normalize_string(rule.description_pattern)
         if not normalized_pattern:
             continue
 
-        # Trim transaction description to pattern length
         candidate = normalized_description[: len(normalized_pattern)]
-
-        # 5. Compare
         if candidate != normalized_pattern:
             continue
 
-        # 6. Match found → create Payment Entry
-        if rule.document_type == "Payment Entry":
-            create_payment_entry_from_transaction(settings, doc, rule, ba_account)
-        elif rule.document_type == "Journal Entry":
-            create_journal_entry_from_transaction(settings, doc, rule, ba_account, second_account)
+        return rule, ba_account, second_account, settings
 
-        frappe.flags.moldova_bt_automation_matched = True
-        # One transaction → one rule → one PE or JE
-        return True
+    return None
 
-    return False
+
+def handle_bank_transaction(doc, method=None):
+    """Match Automation rules. Sets frappe.flags.moldova_bt_automation_matched."""
+    frappe.flags.moldova_bt_automation_matched = False
+
+    matched = get_matching_automation_rule(doc)
+    if not matched:
+        return False
+
+    rule, ba_account, second_account, settings = matched
+    if rule.document_type == "Payment Entry":
+        create_payment_entry_from_transaction(settings, doc, rule, ba_account)
+    elif rule.document_type == "Journal Entry":
+        create_journal_entry_from_transaction(settings, doc, rule, ba_account, second_account)
+
+    frappe.flags.moldova_bt_automation_matched = True
+    return True
 
 
 def create_payment_entry_from_transaction(settings, transaction, rule, ba_account):
