@@ -9,7 +9,10 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, flt, getdate
 
-from erpnext_moldova_banking.utils.bank_transaction_automation import reconcile_pe_and_bt
+from erpnext_moldova_banking.utils.bank_transaction_automation import (
+	matches_automation_rule,
+	reconcile_pe_and_bt,
+)
 from erpnext_moldova_banking.utils.bank_payment_instruction import (
 	DOCTYPE,
 	_set_instruction_fields,
@@ -94,16 +97,27 @@ def find_matching_bank_transaction(doc) -> str | None:
 	from_date = add_days(getdate(doc.payment_date), -DATE_WINDOW_DAYS)
 	to_date = add_days(getdate(doc.payment_date), DATE_WINDOW_DAYS)
 
+	# Do not use between on Currency: Frappe flt()s the [low, high] list.
 	candidates = frappe.get_all(
 		"Bank Transaction",
-		filters={
-			"docstatus": 1,
-			"bank_account": doc.company_bank_account,
-			"date": ["between", [from_date, to_date]],
-			"withdrawal": ["between", [low, high]],
-			"unallocated_amount": [">", 0],
-		},
-		fields=["name", "date", "withdrawal", "description", "reference_number", "unallocated_amount"],
+		filters=[
+			["docstatus", "=", 1],
+			["bank_account", "=", doc.company_bank_account],
+			["date", "between", [from_date, to_date]],
+			["withdrawal", ">=", low],
+			["withdrawal", "<=", high],
+			["unallocated_amount", ">", 0],
+		],
+		fields=[
+			"name",
+			"date",
+			"withdrawal",
+			"description",
+			"reference_number",
+			"unallocated_amount",
+			"company",
+			"bank_account",
+		],
 		order_by="date desc",
 		limit=50,
 	)
@@ -114,6 +128,8 @@ def find_matching_bank_transaction(doc) -> str | None:
 	scored: list[tuple[int, str]] = []
 	for bt in candidates:
 		if bt.name in used:
+			continue
+		if matches_automation_rule(bt):
 			continue
 		if flt(bt.unallocated_amount) + AMOUNT_TOLERANCE < amount:
 			continue
@@ -138,6 +154,8 @@ def find_matching_bank_transaction(doc) -> str | None:
 
 
 def find_matching_instruction(bt) -> str | None:
+	if matches_automation_rule(bt):
+		return None
 	withdrawal = flt(bt.withdrawal)
 	if withdrawal <= 0 or not bt.bank_account:
 		return None
@@ -157,13 +175,14 @@ def find_matching_instruction(bt) -> str | None:
 
 	rows = frappe.get_all(
 		DOCTYPE,
-		filters={
-			"docstatus": 1,
-			"company_bank_account": bt.bank_account,
-			"status": "Executed",
-			"payment_date": ["between", [from_date, to_date]],
-			"amount": ["between", [low, high]],
-		},
+		filters=[
+			["docstatus", "=", 1],
+			["company_bank_account", "=", bt.bank_account],
+			["status", "=", "Executed"],
+			["payment_date", "between", [from_date, to_date]],
+			["amount", ">=", low],
+			["amount", "<=", high],
+		],
 		fields=["name", "payment_date", "document_number", "payment_entry", "party", "party_type", "amount"],
 		limit=50,
 	)
@@ -342,6 +361,8 @@ def try_match_after_status_update(instruction: str) -> dict[str, Any] | None:
 
 
 def try_match_bank_transaction(doc, method=None):
+	if getattr(frappe.flags, "moldova_bt_automation_matched", False) or matches_automation_rule(doc):
+		return
 	if not is_auto_payment_entry_enabled():
 		return
 	if flt(doc.withdrawal) <= 0:
