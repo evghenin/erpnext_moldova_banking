@@ -2,7 +2,7 @@ import hashlib
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import add_days, flt, getdate
 
 
 def _norm_text(value) -> str:
@@ -57,13 +57,19 @@ def find_existing_bank_transaction(
 	currency,
 	exclude_name=None,
 ) -> str | None:
-	"""Return an existing Bank Transaction name matching the statement identity."""
+	"""Return an existing Bank Transaction matching document, payer, amount, currency.
+
+	Date may differ by one calendar day (API write date vs DBO processed date).
+	"""
 	if not bank_account or not posting_date:
 		return None
 
+	posting_date = getdate(posting_date)
 	params = {
 		"bank_account": bank_account,
-		"posting_date": getdate(posting_date),
+		"date_from": add_days(posting_date, -1),
+		"date_to": add_days(posting_date, 1),
+		"posting_date": posting_date,
 		"reference_number": _norm_text(reference_number),
 		"party_name": _norm_text(party_name),
 		"deposit": round(flt(deposit), 2),
@@ -80,7 +86,7 @@ def find_existing_bank_transaction(
 		SELECT name
 		FROM `tabBank Transaction`
 		WHERE bank_account = %(bank_account)s
-			AND `date` = %(posting_date)s
+			AND `date` BETWEEN %(date_from)s AND %(date_to)s
 			AND IFNULL(reference_number, '') = %(reference_number)s
 			AND IFNULL(bank_party_name, '') = %(party_name)s
 			AND ROUND(IFNULL(deposit, 0), 2) = %(deposit)s
@@ -88,6 +94,7 @@ def find_existing_bank_transaction(
 			AND UPPER(IFNULL(currency, '')) = %(currency)s
 			AND docstatus < 2
 			{exclude_sql}
+		ORDER BY ABS(DATEDIFF(`date`, %(posting_date)s)) ASC, name ASC
 		LIMIT 1
 		""",
 		params,
@@ -98,8 +105,8 @@ def find_existing_bank_transaction(
 def ensure_unique_transaction(doc, method=None):
 	"""before_insert hook for Bank Transaction.
 
-	Duplicate when document number, date, payer, amount, and currency
-	already exist on the same bank account.
+	Duplicate when document number, payer, amount, and currency already
+	exist on the same bank account with date equal or ±1 day.
 	"""
 
 	if not getattr(doc, "company", None) and getattr(doc, "bank_account", None):

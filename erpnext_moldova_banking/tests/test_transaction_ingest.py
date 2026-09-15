@@ -4,7 +4,7 @@
 import frappe
 from frappe.test_runner import make_test_records
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import today
+from frappe.utils import add_days, today
 
 from erpnext_moldova_banking.tests.utils import (
 	create_maib_company_bank_account,
@@ -49,6 +49,20 @@ class TestTransactionIngest(FrappeTestCase):
 		self.assertEqual(stats2["created"], 0)
 		self.assertEqual(stats2["skipped"], 1)
 		self.assertEqual(stats2["errors"], 0)
+
+		shifted = dict(row)
+		shifted["date"] = add_days(today(), 1)
+		stats3 = ingest_transactions(self.bank_account, [shifted], submit=False)
+		self.assertEqual(stats3["created"], 0)
+		self.assertEqual(stats3["skipped"], 1)
+		self.assertEqual(stats3["errors"], 0)
+
+		far = dict(row)
+		far["date"] = add_days(today(), 2)
+		stats4 = ingest_transactions(self.bank_account, [far], submit=False)
+		self.assertEqual(stats4["created"], 1)
+		self.assertEqual(stats4["skipped"], 0)
+		self.assertEqual(stats4["errors"], 0)
 
 	def test_create_bank_transaction_helper(self):
 		bt = create_submitted_bank_transaction(
