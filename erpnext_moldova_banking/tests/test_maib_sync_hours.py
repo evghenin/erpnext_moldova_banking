@@ -9,56 +9,65 @@ from frappe.tests.utils import FrappeTestCase
 
 from erpnext_moldova_banking.utils.maib_sync import (
 	_is_due,
-	_within_sync_hours,
-	validate_sync_hours,
+	is_within_global_active_hours,
+	validate_active_hours_rows,
 )
 
 
-class TestMaibSyncHours(FrappeTestCase):
-	def test_both_empty_is_allowed(self):
-		self.assertIsNone(validate_sync_hours(None, None))
-		self.assertIsNone(validate_sync_hours("", ""))
-
-	def test_one_side_only_is_rejected(self):
-		with self.assertRaises(frappe.ValidationError):
-			validate_sync_hours(9, None)
-		with self.assertRaises(frappe.ValidationError):
-			validate_sync_hours(None, 17)
-
-	def test_hours_must_be_0_to_23(self):
-		with self.assertRaises(frappe.ValidationError):
-			validate_sync_hours(-1, 10)
-		with self.assertRaises(frappe.ValidationError):
-			validate_sync_hours(9, 24)
-
-	def test_zero_is_a_valid_hour(self):
-		self.assertEqual(validate_sync_hours(0, 6), (0, 6))
-
-	def test_window_inclusive(self):
-		row = SimpleNamespace(hours_from=9, hours_to=17)
-		self.assertTrue(_within_sync_hours(row, datetime(2026, 9, 15, 9, 0)))
-		self.assertTrue(_within_sync_hours(row, datetime(2026, 9, 15, 17, 59)))
-		self.assertFalse(_within_sync_hours(row, datetime(2026, 9, 15, 8, 59)))
-		self.assertFalse(_within_sync_hours(row, datetime(2026, 9, 15, 18, 0)))
-
-	def test_overnight_window(self):
-		row = SimpleNamespace(hours_from=22, hours_to=6)
-		self.assertTrue(_within_sync_hours(row, datetime(2026, 9, 15, 22, 0)))
-		self.assertTrue(_within_sync_hours(row, datetime(2026, 9, 15, 6, 30)))
-		self.assertFalse(_within_sync_hours(row, datetime(2026, 9, 15, 7, 0)))
-		self.assertFalse(_within_sync_hours(row, datetime(2026, 9, 15, 21, 0)))
-
-	def test_empty_window_never_blocks(self):
-		row = SimpleNamespace(hours_from=None, hours_to=None)
-		self.assertTrue(_within_sync_hours(row, datetime(2026, 9, 15, 3, 0)))
-
-	def test_due_respects_hours(self):
+class TestMaibSyncDue(FrappeTestCase):
+	def test_due_respects_schedule(self):
 		row = SimpleNamespace(
 			disabled=0,
 			schedule="Every 5 minutes",
 			last_synced_on=None,
-			hours_from=9,
-			hours_to=17,
 		)
-		self.assertTrue(_is_due(row, datetime(2026, 9, 15, 10, 0)))
-		self.assertFalse(_is_due(row, datetime(2026, 9, 15, 20, 0)))
+		self.assertTrue(_is_due(row, datetime(2026, 9, 15, 20, 0)))
+
+	def test_manual_only_is_never_due(self):
+		row = SimpleNamespace(
+			disabled=0,
+			schedule="Manual only",
+			last_synced_on=None,
+		)
+		self.assertFalse(_is_due(row, datetime(2026, 9, 15, 10, 0)))
+
+
+class TestGlobalActiveHours(FrappeTestCase):
+	def test_disabled_never_blocks(self):
+		settings = SimpleNamespace(enable_active_hours=0, active_hours=[])
+		self.assertTrue(is_within_global_active_hours(settings, datetime(2026, 9, 15, 3, 0)))
+
+	def test_enabled_without_rows_blocks(self):
+		settings = SimpleNamespace(enable_active_hours=1, active_hours=[])
+		self.assertFalse(is_within_global_active_hours(settings, datetime(2026, 9, 15, 10, 0)))
+
+	def test_same_day_window(self):
+		# 2026-09-15 is a Tuesday.
+		row = SimpleNamespace(day_of_week="Tuesday", time_from="09:00:00", time_to="17:00:00")
+		settings = SimpleNamespace(enable_active_hours=1, active_hours=[row])
+		self.assertTrue(is_within_global_active_hours(settings, datetime(2026, 9, 15, 9, 0)))
+		self.assertTrue(is_within_global_active_hours(settings, datetime(2026, 9, 15, 17, 0)))
+		self.assertFalse(is_within_global_active_hours(settings, datetime(2026, 9, 15, 8, 59)))
+		self.assertFalse(is_within_global_active_hours(settings, datetime(2026, 9, 15, 17, 1)))
+		self.assertFalse(is_within_global_active_hours(settings, datetime(2026, 9, 14, 10, 0)))
+
+	def test_overnight_window(self):
+		row = SimpleNamespace(day_of_week="Tuesday", time_from="22:00:00", time_to="06:00:00")
+		settings = SimpleNamespace(enable_active_hours=1, active_hours=[row])
+		self.assertTrue(is_within_global_active_hours(settings, datetime(2026, 9, 15, 22, 0)))
+		self.assertTrue(is_within_global_active_hours(settings, datetime(2026, 9, 15, 6, 0)))
+		self.assertFalse(is_within_global_active_hours(settings, datetime(2026, 9, 15, 7, 0)))
+		self.assertFalse(is_within_global_active_hours(settings, datetime(2026, 9, 15, 21, 0)))
+
+	def test_validate_requires_a_period(self):
+		with self.assertRaises(frappe.ValidationError):
+			validate_active_hours_rows([])
+
+	def test_validate_rejects_equal_times(self):
+		row = SimpleNamespace(day_of_week="Monday", time_from="10:00:00", time_to="10:00:00")
+		with self.assertRaises(frappe.ValidationError):
+			validate_active_hours_rows([row])
+
+	def test_validate_allows_overnight(self):
+		row = SimpleNamespace(day_of_week="Monday", time_from="22:00:00", time_to="06:00:00")
+		self.assertIsNone(validate_active_hours_rows([row]))

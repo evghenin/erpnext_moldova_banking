@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-15 22:20:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "day_of_week",
+  "time_from",
+  "time_to"
+ ],
+ "fields": [
+  {
+   "fieldname": "day_of_week",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Day of the Week",
+   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday",
+   "reqd": 1
+  },
+  {
+   "fieldname": "time_from",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "time_to",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time To",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-15 22:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "Moldova Banking",
+ "name": "Moldova Banking Active Hours",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

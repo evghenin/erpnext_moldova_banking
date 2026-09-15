@@ -16,16 +16,19 @@ Single DocType that groups configuration:
 
 | Tab | Purpose |
 |---|---|
-| **IDNO** | Map Company / Customer / Supplier tax-id fields for party matching; Romanian language for payment descriptions |
+| **Details** | **Enable Active Hours** plus weekday/time windows; map Company / Customer / Supplier tax-id fields; Romanian language for payment descriptions |
 | **Automation** | Rules that create Payment Entry / Journal Entry from submitted Bank Transactions |
 | **MAIB API** | Per-company OAuth credentials, Test/Production URLs, statement sync, outward payments, auto Payment Entry from statement |
 | **Telegram** | Bot notifications for new Bank Transactions (filters + message fields) |
 | **Exchange Rates** | BNM rates API key and Currency Exchange Settings helper |
 
+When **Enable Active Hours** is on, at least one period is required (day of week, time from, time to). Same-day windows must have Time From earlier than Time To. Overnight windows are allowed by setting Time From later than Time To (for example Tuesday 22:00–06:00). Scheduled MAIB API statement sync runs only inside a matching period. Manual **Fetch Statement** is not restricted. Statement Sync Accounts still control frequency (every 15 minutes, etc.) per bank account.
+
 Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, and Supplier. The field is created on migrate/install if another Moldova app has not already added it.
 
 #### MAIB statement sync
 - Manual **Fetch Statement** and scheduled sync per bank account
+- Scheduled API sync is skipped outside **Active Hours** when that feature is enabled and periods are configured
 - Parses account-statement XML into `Bank Transaction` (dedupe via `unique_key`)
 - Optionally loads Transfer Details when MAIB accepts the identity; otherwise keeps the statement description
 - Stepped progress UI for manual fetch (list → per-transaction details/create)

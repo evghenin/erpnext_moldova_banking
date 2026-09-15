@@ -8,7 +8,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, get_datetime, getdate, now_datetime, today
+from frappe.utils import add_days, cint, get_datetime, get_time, getdate, now_datetime, today
 
 from erpnext_moldova_banking.providers.maib.client import (
 	fetch_statement_xml,
@@ -503,48 +503,67 @@ def fetch_maib_statement(
 		raise
 
 
-def _is_blank_hour(value) -> bool:
-	return value is None or value == ""
+WEEKDAY_NAMES = (
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday",
+	"Sunday",
+)
 
 
-def _parse_hour(value, label: str) -> int:
+def _parse_clock(value, label: str):
+	if value is None or value == "":
+		frappe.throw(_("{0} is required.").format(label))
 	try:
-		hour = int(value)
-	except (TypeError, ValueError):
-		frappe.throw(_("{0} must be an hour between 0 and 23.").format(label))
-	if hour < 0 or hour > 23:
-		frappe.throw(_("{0} must be an hour between 0 and 23.").format(label))
-	return hour
+		return get_time(value)
+	except Exception:
+		frappe.throw(_("{0} is not a valid time.").format(label))
 
 
-def validate_sync_hours(hours_from, hours_to) -> tuple[int, int] | None:
-	"""Require both hours empty or both set (0–23). Returns (from, to) or None."""
-	from_blank = _is_blank_hour(hours_from)
-	to_blank = _is_blank_hour(hours_to)
-	if from_blank and to_blank:
-		return None
-	if from_blank or to_blank:
-		frappe.throw(_("Fill both Hours From and Hours To, or leave both empty."))
-	return _parse_hour(hours_from, _("Hours From")), _parse_hour(hours_to, _("Hours To"))
+def validate_active_hours_rows(rows) -> None:
+	"""Require at least one period; Time From must differ from Time To (overnight wrap allowed)."""
+	if not rows:
+		frappe.throw(_("Configure at least one active hours period."))
+
+	for row in rows:
+		day = (getattr(row, "day_of_week", None) or "").strip()
+		if not day:
+			frappe.throw(_("Day of the Week is required in Active Hours."))
+		time_from = _parse_clock(getattr(row, "time_from", None), _("Time From"))
+		time_to = _parse_clock(getattr(row, "time_to", None), _("Time To"))
+		if time_from == time_to:
+			frappe.throw(_("Time From must be earlier than Time To."))
 
 
-def _within_sync_hours(row, now) -> bool:
-	window = validate_sync_hours(getattr(row, "hours_from", None), getattr(row, "hours_to", None))
-	if window is None:
+def _active_hours_row_covers(row, now) -> bool:
+	day = WEEKDAY_NAMES[now.weekday()]
+	if (getattr(row, "day_of_week", None) or "").strip() != day:
+		return False
+
+	time_from = get_time(row.time_from)
+	time_to = get_time(row.time_to)
+	now_time = now.time().replace(microsecond=0)
+	if time_from < time_to:
+		return time_from <= now_time <= time_to
+	# Overnight window, e.g. 22:00–06:00 on the same weekday.
+	return now_time >= time_from or now_time <= time_to
+
+
+def is_within_global_active_hours(settings, now) -> bool:
+	"""If Enable Active Hours is off, always True. If on, now must match a configured period."""
+	if not cint(getattr(settings, "enable_active_hours", 0)):
 		return True
-	hours_from, hours_to = window
-	hour = now.hour
-	if hours_from <= hours_to:
-		return hours_from <= hour <= hours_to
-	# Overnight window, e.g. 22–6.
-	return hour >= hours_from or hour <= hours_to
+	rows = list(getattr(settings, "active_hours", None) or [])
+	if not rows:
+		return False
+	return any(_active_hours_row_covers(row, now) for row in rows)
 
 
 def _is_due(row, now) -> bool:
 	if row.disabled or row.schedule in (None, "", "Manual only"):
-		return False
-
-	if not _within_sync_hours(row, now):
 		return False
 
 	minutes = SCHEDULE_MINUTES.get(row.schedule)
@@ -585,6 +604,9 @@ def run_due_maib_statement_syncs():
 		return
 
 	now = now_datetime()
+	if not is_within_global_active_hours(settings, now):
+		return
+
 	due_rows = [row for row in list(settings.get("maib_sync_accounts") or []) if _is_due(row, now)]
 	_commit_idle_transaction()
 
