@@ -96,6 +96,9 @@ def _sync_currency_exchange_settings_key(key: str) -> None:
     else:
         ces.append("req_params", {"key": "key", "value": key})
 
+    # ERPNext Currency Exchange Settings.validate() HTTP-probes USD→INR.
+    # Skip that when only rotating the API key — a failing probe blocked key updates.
+    ces.flags.ignore_validate = True
     ces.save(ignore_permissions=True)
 
 
@@ -144,5 +147,6 @@ def configure_currency_exchange_bnm() -> str:
     ces.append("result_key", {"key": "message"})
     ces.append("result_key", {"key": "result"})
 
+    ces.flags.ignore_validate = True
     ces.save(ignore_permissions=True)
     return "ok"
