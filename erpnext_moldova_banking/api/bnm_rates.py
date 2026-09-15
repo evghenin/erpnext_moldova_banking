@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, date as date_cls
+from datetime import datetime, date as date_cls, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
@@ -34,12 +34,17 @@ def _parse_decimal(value: str) -> Decimal:
 
 
 def _fetch_bnm_rates(dt: date_cls) -> Dict[str, Decimal]:
+    """Fetch official BNM rates for a date. Empty dict if BNM has not published that date yet."""
     params = {"get_xml": "1", "date": _to_bnm_date_str(dt)}
     resp = requests.get(BNM_URL, params=params, timeout=BNM_TIMEOUT)
     resp.raise_for_status()
 
+    body = (resp.text or "").strip()
+    if not body:
+        return {}
+
     try:
-        root = ET.fromstring(resp.text)
+        root = ET.fromstring(body)
     except ET.ParseError as e:
         raise frappe.ValidationError(_("BNM returned invalid XML.")) from e
 
@@ -61,9 +66,6 @@ def _fetch_bnm_rates(dt: date_cls) -> Dict[str, Decimal]:
             value = value / nominal
 
         rates[code] = value
-
-    if not rates:
-        raise frappe.ValidationError(_("No currency rates found in BNM XML response."))
 
     return rates
 
@@ -105,33 +107,56 @@ def _keys_list_push_and_trim(new_key: str, limit: int = 10) -> None:
     _cache_set(CACHE_KEYS_LIST, keys)
 
 
-def get_bnm_rates_cached(dt: date_cls) -> Dict[str, Decimal]:
+def _rates_from_cache_payload(cached: Any) -> Optional[Dict[str, Decimal]]:
+    if not isinstance(cached, dict) or not isinstance(cached.get("rates"), dict) or not cached["rates"]:
+        return None
+    out: Dict[str, Decimal] = {}
+    for k, v in cached["rates"].items():
+        out[str(k).upper()] = _parse_decimal(str(v))
+    return out
+
+
+def get_bnm_rates_cached(dt: date_cls, lookback_days: int = 10) -> Dict[str, Decimal]:
     """
     Fetch BNM rates with MRU cache of last 10 dates.
     Returns dict like {"EUR": Decimal("19.12"), ...} representing: 1 CUR = X MDL.
+
+    If BNM has not published the requested date yet (weekends, holidays, or a
+    future/transaction date), walk back to the latest published session.
     """
-    bnm_date = _to_bnm_date_str(dt)
-    cache_key = f"{CACHE_PREFIX}:{bnm_date}"
+    last_error: Optional[Exception] = None
 
-    cached = _cache_get(cache_key)
-    if isinstance(cached, dict) and isinstance(cached.get("rates"), dict):
+    for offset in range(max(0, lookback_days) + 1):
+        candidate = dt - timedelta(days=offset)
+        bnm_date = _to_bnm_date_str(candidate)
+        cache_key = f"{CACHE_PREFIX}:{bnm_date}"
+
+        cached_rates = _rates_from_cache_payload(_cache_get(cache_key))
+        if cached_rates:
+            _keys_list_push_and_trim(cache_key, limit=10)
+            return cached_rates
+
+        try:
+            rates = _fetch_bnm_rates(candidate)
+        except Exception as e:
+            last_error = e
+            continue
+
+        if not rates:
+            continue
+
+        payload = {
+            "date": bnm_date,
+            "rates": {k: str(v) for k, v in rates.items()},
+            "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        }
+        _cache_set(cache_key, payload)
         _keys_list_push_and_trim(cache_key, limit=10)
-        rates_raw = cached["rates"]
-        out: Dict[str, Decimal] = {}
-        for k, v in rates_raw.items():
-            out[str(k).upper()] = _parse_decimal(str(v))
-        return out
+        return rates
 
-    rates = _fetch_bnm_rates(dt)
-    payload = {
-        "date": bnm_date,
-        "rates": {k: str(v) for k, v in rates.items()},
-        "fetched_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-    }
-
-    _cache_set(cache_key, payload)
-    _keys_list_push_and_trim(cache_key, limit=10)
-    return rates
+    if last_error:
+        raise last_error
+    raise frappe.ValidationError(_("No currency rates found in BNM XML response."))
 
 
 def _require_bnm_key(provided_key: str) -> None:
@@ -174,16 +199,19 @@ def get_exchange_rate(
     from_currency: Optional[str] = None,
     to_currency: Optional[str] = None,
     date: Optional[str] = None,
-    key: Optional[str] = None
+    key: Optional[str] = None,
+    api_key: Optional[str] = None,
 ):
-    _require_bnm_key(key)
+    from frappe.utils import getdate
+
+    _require_bnm_key(api_key or key)
 
     if not date or not from_currency or not to_currency:
         frappe.throw(_("Missing required parameters: date, from_currency, to_currency, key"), frappe.ValidationError)
 
     try:
-        dt = datetime.strptime(date, "%Y-%m-%d").date()
-    except ValueError:
+        dt = getdate(date)
+    except Exception:
         frappe.throw(_("Invalid date format. Expected YYYY-MM-DD."), frappe.ValidationError)
 
     rates = get_bnm_rates_cached(dt)
