@@ -9,7 +9,10 @@ import frappe
 from frappe.utils import flt, getdate
 
 from erpnext_moldova_banking.utils.party import resolve_party_by_idno
-from erpnext_moldova_banking.utils.telegram_notify import notify_new_bank_transaction
+from erpnext_moldova_banking.utils.telegram_notify import (
+	notify_new_bank_transaction,
+	telegram_api_batch,
+)
 
 
 def ingest_transactions(
@@ -41,36 +44,37 @@ def ingest_transactions(
 	previous_source = getattr(frappe.flags, "moldova_bt_source", None)
 	frappe.flags.moldova_bt_source = source
 	try:
-		for idx, row in enumerate(rows or []):
-			try:
-				_ingest_one(
-					ba.name,
-					company,
-					currency,
-					row,
-					submit=submit,
-					stats=stats,
-					source=source,
-				)
-			except frappe.ValidationError as e:
-				# Duplicate unique_key raises ValidationError via frappe.throw
-				msg = str(e)
-				if "Duplicate bank statement line" in msg or "unique_key" in msg.lower():
-					stats["skipped"] += 1
-				else:
-					stats["errors"] += 1
-					stats["error_messages"].append(msg)
-					frappe.log_error(frappe.get_traceback(), "Bank transaction ingest validation error")
-			except Exception as e:
-				stats["errors"] += 1
-				stats["error_messages"].append(str(e))
-				frappe.log_error(frappe.get_traceback(), "Bank transaction ingest failed")
-
-			if progress_callback:
+		with telegram_api_batch(enabled=(source == "api")):
+			for idx, row in enumerate(rows or []):
 				try:
-					progress_callback(idx + 1, total)
-				except Exception:
-					pass
+					_ingest_one(
+						ba.name,
+						company,
+						currency,
+						row,
+						submit=submit,
+						stats=stats,
+						source=source,
+					)
+				except frappe.ValidationError as e:
+					# Duplicate unique_key raises ValidationError via frappe.throw
+					msg = str(e)
+					if "Duplicate bank statement line" in msg or "unique_key" in msg.lower():
+						stats["skipped"] += 1
+					else:
+						stats["errors"] += 1
+						stats["error_messages"].append(msg)
+						frappe.log_error(frappe.get_traceback(), "Bank transaction ingest validation error")
+				except Exception as e:
+					stats["errors"] += 1
+					stats["error_messages"].append(str(e))
+					frappe.log_error(frappe.get_traceback(), "Bank transaction ingest failed")
+
+				if progress_callback:
+					try:
+						progress_callback(idx + 1, total)
+					except Exception:
+						pass
 	finally:
 		frappe.flags.moldova_bt_source = previous_source
 

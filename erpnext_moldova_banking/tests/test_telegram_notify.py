@@ -8,8 +8,10 @@ from frappe.tests.utils import FrappeTestCase
 
 from erpnext_moldova_banking.utils.telegram_notify import (
 	_should_notify,
+	combine_bank_transaction_messages,
 	format_bank_transaction_message,
 	notify_new_bank_transaction,
+	telegram_api_batch,
 )
 
 
@@ -154,3 +156,42 @@ class TestTelegramNotify(FrappeTestCase):
 		)
 		ok = notify_new_bank_transaction(doc, source="api", automation_matched=False)
 		self.assertFalse(ok)
+
+	def test_combine_messages(self):
+		text = combine_bank_transaction_messages(["one", "two"])
+		self.assertIn("one", text)
+		self.assertIn("two", text)
+		self.assertIn("────────", text)
+
+	@patch("erpnext_moldova_banking.utils.telegram_notify.send_telegram_message")
+	@patch("erpnext_moldova_banking.utils.telegram_notify._get_settings")
+	@patch("erpnext_moldova_banking.utils.telegram_notify._get_bot_token", return_value="token")
+	def test_api_batch_sends_five_together(self, _token, mock_settings, mock_send):
+		mock_settings.return_value = _settings()
+
+		def _doc(i):
+			return frappe._dict(
+				name=f"ACC-BTN-{i}",
+				company="Best Test SRL",
+				date="2026-07-28",
+				deposit=i,
+				withdrawal=0,
+				currency="MDL",
+				description=f"Pay {i}",
+				bank_party_name="Supplier SRL",
+				party="",
+			)
+
+		with telegram_api_batch():
+			for i in range(1, 8):
+				self.assertTrue(notify_new_bank_transaction(_doc(i), source="api"))
+
+		self.assertEqual(mock_send.call_count, 2)
+		first = mock_send.call_args_list[0][0][0]
+		second = mock_send.call_args_list[1][0][0]
+		self.assertIn("ACC-BTN-1", first)
+		self.assertIn("ACC-BTN-5", first)
+		self.assertNotIn("ACC-BTN-6", first)
+		self.assertIn("ACC-BTN-6", second)
+		self.assertIn("ACC-BTN-7", second)
+		self.assertIn("────────", first)

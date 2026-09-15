@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class MAIBStatementSyncAccount(Document):
+class MoldovaBankingActiveHours(Document):
 	pass

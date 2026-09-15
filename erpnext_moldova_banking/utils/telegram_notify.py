@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Any
 
 import requests
@@ -14,6 +15,9 @@ from frappe.utils import flt, getdate
 SETTINGS_DOCTYPE = "Moldova Banking Settings"
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 DESC_MAX = 800
+TELEGRAM_TEXT_MAX = 4096
+API_BATCH_SIZE = 5
+BATCH_SEPARATOR = "\n\n────────\n\n"
 
 
 def _require_system_manager():
@@ -202,6 +206,58 @@ def format_bank_transaction_message(
 	return "\n".join(lines).strip()
 
 
+def combine_bank_transaction_messages(texts: list[str]) -> str:
+	"""Join several BT messages for one Telegram send."""
+	parts = [t.strip() for t in texts if (t or "").strip()]
+	return BATCH_SEPARATOR.join(parts).strip()
+
+
+@contextmanager
+def telegram_api_batch(*, enabled: bool = True):
+	"""Buffer API-imported BT notifications and send them in groups of up to 5."""
+	if not enabled:
+		yield
+		return
+
+	previous_flag = getattr(frappe.flags, "moldova_telegram_batching", False)
+	previous_queue = getattr(frappe.flags, "moldova_telegram_batch", None)
+	frappe.flags.moldova_telegram_batching = True
+	frappe.flags.moldova_telegram_batch = []
+	try:
+		yield
+		_flush_telegram_batch()
+	finally:
+		frappe.flags.moldova_telegram_batching = previous_flag
+		frappe.flags.moldova_telegram_batch = previous_queue
+
+
+def _flush_telegram_batch(settings=None) -> int:
+	"""Send queued texts in chunks of at most API_BATCH_SIZE (and Telegram length)."""
+	queue = getattr(frappe.flags, "moldova_telegram_batch", None)
+	if not queue:
+		return 0
+
+	sent = 0
+	settings = settings or _get_settings()
+	while queue:
+		n = min(API_BATCH_SIZE, len(queue))
+		while n > 1 and len(combine_bank_transaction_messages(queue[:n])) > TELEGRAM_TEXT_MAX:
+			n -= 1
+		chunk = [queue.pop(0) for _ in range(n)]
+		text = combine_bank_transaction_messages(chunk)
+		if len(text) > TELEGRAM_TEXT_MAX:
+			text = text[: TELEGRAM_TEXT_MAX - 1] + "…"
+		try:
+			send_telegram_message(text, settings=settings)
+			sent += 1
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				"Telegram notify batch failed",
+			)
+	return sent
+
+
 def notify_new_bank_transaction(
 	doc,
 	*,
@@ -234,6 +290,13 @@ def notify_new_bank_transaction(
 			automation_matched=bool(automation_matched),
 			settings=settings,
 		)
+		queue = getattr(frappe.flags, "moldova_telegram_batch", None)
+		if getattr(frappe.flags, "moldova_telegram_batching", False) and queue is not None:
+			queue.append(text)
+			if len(queue) >= API_BATCH_SIZE:
+				_flush_telegram_batch(settings=settings)
+			return True
+
 		send_telegram_message(text, settings=settings)
 		return True
 	except Exception:

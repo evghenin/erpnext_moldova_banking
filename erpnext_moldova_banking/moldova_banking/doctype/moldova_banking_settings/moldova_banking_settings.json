@@ -6,6 +6,8 @@
  "engine": "InnoDB",
  "field_order": [
   "idno_section",
+  "enable_active_hours",
+  "active_hours",
   "language",
   "idno_column",
   "company_idno_field",
@@ -66,6 +68,22 @@
   {
    "fieldname": "idno_section",
    "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, scheduled MAIB API statement sync runs only during the periods below. Manual Fetch Statement is not restricted.",
+   "fieldname": "enable_active_hours",
+   "fieldtype": "Check",
+   "label": "Enable Active Hours"
+  },
+  {
+   "depends_on": "eval:doc.enable_active_hours",
+   "description": "Same-day windows require Time From earlier than Time To. Overnight windows use Time From later than Time To (for example 22:00\u201306:00).",
+   "fieldname": "active_hours",
+   "fieldtype": "Table",
+   "label": "Active Hours",
+   "mandatory_depends_on": "eval:doc.enable_active_hours",
+   "options": "Moldova Banking Active Hours"
   },
   {
    "fieldname": "language",
@@ -415,7 +433,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-14 19:17:38.497106",
+ "modified": "2026-09-15 22:20:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Moldova Banking Settings",
