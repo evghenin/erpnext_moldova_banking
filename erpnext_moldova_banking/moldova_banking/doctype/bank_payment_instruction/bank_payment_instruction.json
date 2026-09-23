@@ -147,7 +147,7 @@
    "fieldname": "party_type",
    "fieldtype": "Select",
    "label": "Party Type",
-   "options": "Company\nCustomer\nSupplier",
+   "options": "Company\nCustomer\nSupplier\nShareholder\nEmployee",
    "reqd": 1
   },
   {
@@ -248,7 +248,8 @@
   {
    "fieldname": "instruction_to_bank",
    "fieldtype": "Small Text",
-   "label": "Instruction to Bank"
+   "label": "Instruction to Bank",
+   "reqd": 1
   },
   {
    "fieldname": "section_bank",
