@@ -11,6 +11,7 @@ from erpnext_moldova_banking.utils.residency import (
 	ensure_moldova_residency_status_fields,
 	residency_field_exists,
 )
+from erpnext_moldova_banking.utils.tax_id import ensure_party_tax_id_fields
 
 
 class TestMoldovaResidencyStatus(FrappeTestCase):
@@ -24,6 +25,7 @@ class TestMoldovaResidencyStatus(FrappeTestCase):
 		self.assertEqual(map_residency_status(""), "N")
 
 	def test_ensure_skips_existing_custom_fields(self):
+		ensure_party_tax_id_fields()
 		first = ensure_moldova_residency_status_fields()
 		for doctype in PARTY_DOCTYPES:
 			self.assertIn(first[doctype], ("exists", "created"))

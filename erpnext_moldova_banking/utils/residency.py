@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Evgheni Nemerenco and contributors
 # For license information, please see license.txt
 
-"""Ensure Moldova Residency Status exists on Company, Customer, and Supplier.
+"""Ensure Moldova Residency Status exists on Company, Customer, Supplier, Shareholder, and Employee.
 
 Another Moldova app (for example erpnext_moldova_efactura) may already own this
 field. Never create a duplicate Custom Field when one already exists.
@@ -13,7 +13,7 @@ import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 FIELDNAME = "moldova_residency_status"
-PARTY_DOCTYPES = ("Company", "Customer", "Supplier")
+PARTY_DOCTYPES = ("Company", "Customer", "Supplier", "Shareholder", "Employee")
 
 _FIELD = {
 	"fieldname": FIELDNAME,

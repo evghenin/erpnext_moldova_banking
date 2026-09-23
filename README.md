@@ -25,7 +25,7 @@ Single DocType that groups configuration:
 
 When **Enable Active Hours** is on, at least one period is required (day of week, time from, time to). Same-day windows must have Time From earlier than Time To. Overnight windows are allowed by setting Time From later than Time To (for example Tuesday 22:00–06:00). Scheduled MAIB API statement sync runs only inside a matching period. Manual **Fetch Statement** is not restricted. Statement Sync Accounts still control frequency (every 15 minutes, etc.) per bank account.
 
-Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, and Supplier. The field is created on migrate/install if another Moldova app has not already added it.
+Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, Supplier, Shareholder, and Employee, immediately after Tax ID. The field is created on migrate/install if another Moldova app has not already added it.
 
 **Tax ID** (`tax_id`, unique) is added on Shareholder (after Title) and Employee (after Bank Name) on migrate/install when that field is not already present. Shareholder IDNO field and Employee IDNO field in settings default to `tax_id`.
 
