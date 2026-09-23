@@ -7,7 +7,8 @@ Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements and payme
 | Line | What it is |
 |---|---|
 | Tag [`v1.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v1.0.0) | Last release before MAIB API (file import, automation, BNM) |
-| Branches `master` and `v2` | v2.1.0 (MAIB API + Bank Payment Instruction) |
+| Tag [`v2.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.0.0) | MAIB API, Bank Payment Instruction for suppliers, Active Hours, Telegram |
+| Tag [`v2.1.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.1.0) and branches `master` and `v2` | Shareholder and Employee payments, company bank account from the party default |
 
 ### Features
 
@@ -16,7 +17,7 @@ Single DocType that groups configuration:
 
 | Tab | Purpose |
 |---|---|
-| **Details** | **Enable Active Hours** plus weekday/time windows; map Company / Customer / Supplier tax-id fields; Romanian language for payment descriptions |
+| **Details** | **Enable Active Hours** plus weekday/time windows; map Company, Customer, Supplier, Shareholder, and Employee tax-id fields; Romanian language for payment descriptions |
 | **Automation** | Rules that create Payment Entry / Journal Entry from submitted Bank Transactions |
 | **MAIB API** | Per-company OAuth credentials, Test/Production URLs, statement sync, outward payments, auto Payment Entry from statement |
 | **Telegram** | Bot notifications for new Bank Transactions (filters + message fields) |
@@ -26,6 +27,8 @@ When **Enable Active Hours** is on, at least one period is required (day of week
 
 Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, and Supplier. The field is created on migrate/install if another Moldova app has not already added it.
 
+**Tax ID** (`tax_id`, unique) is added on Shareholder (after Title) and Employee (after Bank Name) on migrate/install when that field is not already present. Shareholder IDNO field and Employee IDNO field in settings default to `tax_id`.
+
 #### MAIB statement sync
 - Manual **Fetch Statement** and scheduled sync per bank account
 - Scheduled API sync is skipped outside **Active Hours** when that feature is enabled and periods are configured
@@ -34,8 +37,11 @@ Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, and Supp
 - Stepped progress UI for manual fetch (list → per-transaction details/create)
 
 #### MAIB outward payments
-- **Bank Payment Instruction** (not Payment Order): payment date, payer IBAN, beneficiary, residency, amount, and bank comments
-- Link one or more **Purchase Invoices**; create from a Purchase Invoice
+- **Bank Payment Instruction** (not Payment Order): payment date, payer IBAN, beneficiary, residency, amount, and a required instruction to the bank
+- Party types: Company, Customer, Supplier, Shareholder, Employee
+- **Company Bank Account** comes from the Customer or Supplier **Default Bank Account** when that account belongs to the paying company; otherwise the company bank account marked default
+- Supplier and Customer payments list one or more **Purchase Invoices** (also created from a Purchase Invoice). Amount and the instruction to the bank are filled from those invoices
+- Company, Shareholder, and Employee payments hide the invoice table. Amount and the instruction to the bank are entered manually
 - Send Ordinary MDL transfers, poll status
 - Optional **Auto Payment Entry from Statement**: match executed instruction ↔ Bank Transaction → Payment Entry → reconcile
 
@@ -58,7 +64,7 @@ Header format: `Incoming Bank Transaction ACC-BTN-…` / `Outgoing Bank Transact
 #### BNM exchange rates
 Protected endpoint + helpers to regenerate the API key and wire ERPNext **Currency Exchange Settings**.
 
-### Installation (v2.0.0)
+### Installation (v2.1.0)
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
@@ -70,6 +76,13 @@ bench --site <site> migrate
 `--branch master` currently tracks the same v2.1.0 line.
 
 Open **Moldova Banking Settings** and configure the tabs you need (MAIB company credentials, Test/Production, Telegram bot token & chat id, etc.).
+
+### Upgrade from v2.0.0
+
+1. Update the app to tag `v2.1.0` (or `master` / `v2`).
+2. Run `bench --site <site> migrate`.
+
+Migrate adds Shareholder and Employee IDNO settings, creates **Tax ID** on those doctypes when missing, and extends Bank Payment Instruction with those party types.
 
 ### Upgrade from v1.0.0
 
