@@ -24,11 +24,14 @@ from erpnext_moldova_banking.utils.payment_details import (
 OPEN_BANK_STATUSES = ("Waiting For Authorisation", "In Process")
 _MAX_DOCUMENT_NUMBER_DIGITS = 9
 DOCTYPE = "Bank Payment Instruction"
-ALLOWED_PARTY_TYPES = ("Company", "Customer", "Supplier")
+ALLOWED_PARTY_TYPES = ("Company", "Customer", "Supplier", "Shareholder", "Employee")
+MANUAL_PAYMENT_PARTY_TYPES = ("Company", "Shareholder", "Employee")
 PARTY_NAME_FIELDS = {
 	"Company": "company_name",
 	"Customer": "customer_name",
 	"Supplier": "supplier_name",
+	"Shareholder": "title",
+	"Employee": "employee_name",
 }
 
 
@@ -137,7 +140,7 @@ def get_beneficiary_defaults(party_type: str | None = None, party: str | None = 
 
 def _assert_allowed_party_type(party_type: str | None):
 	if party_type not in ALLOWED_PARTY_TYPES:
-		frappe.throw(_("Party Type must be Company, Customer or Supplier."))
+		frappe.throw(_("Party Type must be Company, Customer, Supplier, Shareholder or Employee."))
 
 
 def _assert_party_owns_bank_account(doc):
@@ -176,24 +179,31 @@ def prepare_instruction(doc):
 	doc.destination_bic = defaults["destination_bic"]
 	doc.residency_status = defaults["residency_status"]
 
+	if not doc.company_bank_account and doc.company:
+		doc.company_bank_account = _resolve_company_bank_account(doc.company, doc.party_type, doc.party)
+
 	if doc.company_bank_account:
 		doc.source_iban = _clean_iban(frappe.db.get_value("Bank Account", doc.company_bank_account, "iban"))
 
-	_sync_invoices(doc)
-
-	invoice_names = [name for name, _amount in get_invoice_allocations(doc)]
-	documents = [
-		(row.get("reference_description") or "").strip()
-		for row in doc.get("invoices") or []
-		if (row.get("reference_description") or "").strip()
-	]
-	if invoice_names or documents:
-		doc.instruction_to_bank = build_instruction_to_bank_for_invoices(
-			invoice_names, documents=documents or None
-		)
+	if doc.party_type in MANUAL_PAYMENT_PARTY_TYPES:
+		doc.set("invoices", [])
+	else:
+		_sync_invoices(doc)
+		invoice_names = [name for name, _amount in get_invoice_allocations(doc)]
+		documents = [
+			(row.get("reference_description") or "").strip()
+			for row in doc.get("invoices") or []
+			if (row.get("reference_description") or "").strip()
+		]
+		if invoice_names or documents:
+			doc.instruction_to_bank = build_instruction_to_bank_for_invoices(
+				invoice_names, documents=documents or None
+			)
 
 	if doc.instruction_to_bank:
 		doc.instruction_to_bank = clean_instruction_to_bank(doc.instruction_to_bank)
+	if not (doc.instruction_to_bank or "").strip():
+		frappe.throw(_("Instruction to Bank is required."))
 
 	if not doc.currency and doc.company:
 		doc.currency = frappe.db.get_value("Company", doc.company, "default_currency")
@@ -400,18 +410,48 @@ def _set_instruction_fields(name: str, values: dict[str, Any]):
 	frappe.db.set_value(DOCTYPE, name, values, update_modified=False)
 
 
-def _resolve_company_bank_account(company: str) -> str:
-	accounts = frappe.get_all(
+def _party_default_company_bank_account(party_type: str | None, party: str | None, company: str) -> str | None:
+	if party_type not in ("Customer", "Supplier") or not party or not company:
+		return None
+	if not frappe.get_meta(party_type).has_field("default_bank_account"):
+		return None
+	account = frappe.db.get_value(party_type, party, "default_bank_account")
+	if not account:
+		return None
+	row = frappe.db.get_value(
 		"Bank Account",
-		filters={"company": company, "is_company_account": 1},
-		fields=["name", "bank"],
+		account,
+		["name", "company", "is_company_account", "disabled"],
+		as_dict=True,
 	)
-	for row in accounts:
-		if is_maib_bank_account(row.name):
-			return row.name
-	if len(accounts) == 1:
-		return accounts[0].name
-	frappe.throw(_("Could not determine Company Bank Account for {0}.").format(company))
+	if not row or cint(row.disabled) or not cint(row.is_company_account):
+		return None
+	if row.company and row.company != company:
+		return None
+	return row.name
+
+
+def _resolve_company_bank_account(company: str, party_type: str | None = None, party: str | None = None) -> str:
+	account = _party_default_company_bank_account(party_type, party, company)
+	if not account:
+		account = frappe.db.get_value(
+			"Bank Account",
+			{"company": company, "is_company_account": 1, "is_default": 1, "disabled": 0},
+			"name",
+		)
+	if not account:
+		frappe.throw(_("Could not determine Company Bank Account for {0}.").format(company))
+	return account
+
+
+@frappe.whitelist()
+def get_default_company_bank_account(company: str, party_type: str | None = None, party: str | None = None) -> str:
+	if not company:
+		return ""
+	try:
+		return _resolve_company_bank_account(company, party_type, party)
+	except frappe.ValidationError:
+		return ""
 
 
 def _resolve_supplier_bank_account(supplier: str) -> str | None:
@@ -454,7 +494,7 @@ def make_from_purchase_invoice(purchase_invoice: str) -> dict:
 	doc.company = pi.company
 	doc.bank_provider = "MAIB"
 	doc.payment_date = today()
-	doc.company_bank_account = _resolve_company_bank_account(pi.company)
+	doc.company_bank_account = _resolve_company_bank_account(pi.company, "Supplier", pi.supplier)
 	doc.party_type = "Supplier"
 	doc.party = pi.supplier
 	doc.party_bank_account = party_ba

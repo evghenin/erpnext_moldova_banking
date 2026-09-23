@@ -2,12 +2,12 @@
 
 Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements and payments), DBO file import, bank transaction automation, BNM FX rates, and Telegram notifications.
 
-**Current version: 2.0.0** (ERPNext v15 / Frappe v15).
+**Current version: 2.1.0** (ERPNext v15 / Frappe v15).
 
 | Line | What it is |
 |---|---|
 | Tag [`v1.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v1.0.0) | Last release before MAIB API (file import, automation, BNM) |
-| Branches `master` and `v2` | v2.0.0 development (MAIB API + Bank Payment Instruction) |
+| Branches `master` and `v2` | v2.1.0 (MAIB API + Bank Payment Instruction) |
 
 ### Features
 
@@ -67,7 +67,7 @@ bench --site <site> install-app erpnext_moldova_banking
 bench --site <site> migrate
 ```
 
-`--branch master` currently tracks the same v2.0.0 line.
+`--branch master` currently tracks the same v2.1.0 line.
 
 Open **Moldova Banking Settings** and configure the tabs you need (MAIB company credentials, Test/Production, Telegram bot token & chat id, etc.).
 

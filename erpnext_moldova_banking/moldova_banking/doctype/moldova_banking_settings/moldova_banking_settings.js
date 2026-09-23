@@ -551,4 +551,16 @@ function set_options_for_idno_selects(frm) {
 		const data_fields = fields.filter((df) => df.fieldtype === "Data").map((df) => df.fieldname);
 		frm.set_df_property("supplier_idno_field", "options", [""].concat(data_fields));
 	});
+
+	frappe.model.with_doctype("Shareholder", () => {
+		const fields = frappe.meta.get_docfields("Shareholder");
+		const data_fields = fields.filter((df) => df.fieldtype === "Data").map((df) => df.fieldname);
+		frm.set_df_property("shareholder_idno_field", "options", [""].concat(data_fields));
+	});
+
+	frappe.model.with_doctype("Employee", () => {
+		const fields = frappe.meta.get_docfields("Employee");
+		const data_fields = fields.filter((df) => df.fieldtype === "Data").map((df) => df.fieldname);
+		frm.set_df_property("employee_idno_field", "options", [""].concat(data_fields));
+	});
 }

@@ -177,6 +177,8 @@ def enable_maib_settings(
 	settings.company_idno_field = settings.company_idno_field or "tax_id"
 	settings.customer_idno_field = settings.customer_idno_field or "tax_id"
 	settings.supplier_idno_field = settings.supplier_idno_field or "tax_id"
+	settings.shareholder_idno_field = settings.shareholder_idno_field or "tax_id"
+	settings.employee_idno_field = settings.employee_idno_field or "tax_id"
 	settings.bnm_rates_key = settings.bnm_rates_key or "test-bnm-rates-key"
 	settings.maib_enabled = 1 if api else 0
 	settings.maib_outward_payments_enabled = 1 if outward else 0

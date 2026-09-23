@@ -13,6 +13,7 @@ frappe.ui.form.on("Bank Payment Instruction", {
 
 	refresh(frm) {
 		keep_beneficiary_fields_visible(frm);
+		toggle_manual_payment(frm);
 		frm.trigger("toggle_bank_buttons");
 	},
 
@@ -20,9 +21,11 @@ frappe.ui.form.on("Bank Payment Instruction", {
 		if (frm.doc.company_bank_account) {
 			frappe.db.get_value("Bank Account", frm.doc.company_bank_account, "company").then((r) => {
 				if ((r.message || {}).company !== frm.doc.company) {
-					frm.set_value("company_bank_account", "");
+					frm.set_value("company_bank_account", "").then(() => set_company_bank_account(frm));
 				}
 			});
+		} else {
+			set_company_bank_account(frm);
 		}
 	},
 
@@ -30,11 +33,14 @@ frappe.ui.form.on("Bank Payment Instruction", {
 		frm.set_value("party", "");
 		frm.set_value("party_bank_account", "");
 		clear_beneficiary(frm);
+		toggle_manual_payment(frm, true);
+		set_company_bank_account(frm);
 	},
 
 	party(frm) {
 		frm.set_value("party_bank_account", "");
 		frm.trigger("fill_beneficiary");
+		set_company_bank_account(frm);
 	},
 
 	party_bank_account(frm) {
@@ -136,6 +142,9 @@ frappe.ui.form.on("Bank Payment Instruction", {
 	},
 
 	rebuild_instruction_to_bank(frm) {
+		if (is_manual_payment(frm)) {
+			return;
+		}
 		const invoices = (frm.doc.invoices || [])
 			.map((row) => row.purchase_invoice)
 			.filter(Boolean);
@@ -323,6 +332,42 @@ function keep_beneficiary_fields_visible(frm) {
 			field.refresh();
 		}
 	);
+}
+
+const MANUAL_PAYMENT_PARTY_TYPES = ["Company", "Shareholder", "Employee"];
+
+function is_manual_payment(frm) {
+	return MANUAL_PAYMENT_PARTY_TYPES.includes(frm.doc.party_type);
+}
+
+function toggle_manual_payment(frm, clear_invoices) {
+	const manual = is_manual_payment(frm);
+	frm.toggle_display("section_invoices", !manual);
+	frm.toggle_display("invoices", !manual);
+	frm.set_df_property("amount", "read_only", manual && frm.doc.docstatus === 0 ? 0 : 1);
+	if (manual && clear_invoices && (frm.doc.invoices || []).length) {
+		frm.clear_table("invoices");
+		frm.refresh_field("invoices");
+	}
+}
+
+function set_company_bank_account(frm) {
+	if (!frm.doc.company || frm.doc.docstatus !== 0) {
+		return;
+	}
+	frappe.call({
+		method: "erpnext_moldova_banking.utils.bank_payment_instruction.get_default_company_bank_account",
+		args: {
+			company: frm.doc.company,
+			party_type: frm.doc.party_type,
+			party: frm.doc.party,
+		},
+		callback(r) {
+			if (r.message) {
+				frm.set_value("company_bank_account", r.message);
+			}
+		},
+	});
 }
 
 function clear_beneficiary(frm) {

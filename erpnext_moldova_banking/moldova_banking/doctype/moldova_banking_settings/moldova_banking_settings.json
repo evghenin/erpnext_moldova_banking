@@ -13,6 +13,8 @@
   "company_idno_field",
   "customer_idno_field",
   "supplier_idno_field",
+  "shareholder_idno_field",
+  "employee_idno_field",
   "automation",
   "enable_automation",
   "automation_mode_of_payment",
@@ -113,6 +115,22 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Supplier IDNO field",
+   "reqd": 1
+  },
+  {
+   "default": "tax_id",
+   "description": "Select field from Shareholder used to store IDNO",
+   "fieldname": "shareholder_idno_field",
+   "fieldtype": "Select",
+   "label": "Shareholder IDNO field",
+   "reqd": 1
+  },
+  {
+   "default": "tax_id",
+   "description": "Select field from Employee used to store IDNO",
+   "fieldname": "employee_idno_field",
+   "fieldtype": "Select",
+   "label": "Employee IDNO field",
    "reqd": 1
   },
   {
