@@ -22,11 +22,13 @@ frappe.ui.form.on('Moldova Banking Settings', {
         const btn = frm.get_field("regenerate_bnm_rates_key")?.$input;
         if (btn) btn.prop("disabled", true);
 
-        frappe.call({
-        method: "erpnext_moldova_banking.utils.bnm_key.regenerate_bnm_rates_key",
-        freeze: true,
-        freeze_message: __("Generating new key..."),
-        })
+        Promise.resolve(
+            frappe.call({
+                method: "erpnext_moldova_banking.utils.bnm_key.regenerate_bnm_rates_key",
+                freeze: true,
+                freeze_message: __("Generating new key..."),
+            })
+        )
         .then(() => frm.reload_doc())
         .finally(() => {
             if (btn) btn.prop("disabled", false);
@@ -37,11 +39,13 @@ frappe.ui.form.on('Moldova Banking Settings', {
         const btn = frm.get_field("configure_currency_exchange_bnm")?.$input;
         if (btn) btn.prop("disabled", true);
 
-        frappe.call({
-        method: "erpnext_moldova_banking.utils.bnm_key.configure_currency_exchange_bnm",
-        freeze: true,
-        freeze_message: __("Configuring..."),
-        })
+        Promise.resolve(
+            frappe.call({
+                method: "erpnext_moldova_banking.utils.bnm_key.configure_currency_exchange_bnm",
+                freeze: true,
+                freeze_message: __("Configuring..."),
+            })
+        )
         .then(() => frappe.show_alert({ message: __("Configured."), indicator: "green" }))
         .finally(() => {
             if (btn) btn.prop("disabled", false);
