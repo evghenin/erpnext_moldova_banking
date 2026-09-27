@@ -14,6 +14,9 @@ from frappe import _
 
 
 BNM_URL = "https://www.bnm.md/en/official_exchange_rates"
+# Official BNM rate (bnmRate) republished by Victoriabank. Different network path than www.bnm.md.
+VICTORIABANK_RATES_URL = "https://www.victoriabank.md/bff/api/currency-rates"
+VICTORIABANK_MARKET_TYPE = "14"
 # (connect, read). A blackholed route must not hold a web worker for the proxy timeout.
 BNM_TIMEOUT = (5, 10)
 
@@ -139,10 +142,16 @@ def get_bnm_rates_cached(dt: date_cls, lookback_days: int = 10) -> Dict[str, Dec
 
         try:
             rates = _fetch_bnm_rates(candidate)
-        except (requests.Timeout, requests.ConnectionError):
+        except (requests.Timeout, requests.ConnectionError) as exc:
             # Unpublished dates come back as an empty body, not a dropped connection.
             # Retrying those network failures across the lookback window pins the worker.
-            raise
+            if not use_victoriabank_if_bnm_unavailable():
+                raise
+            rates = _victoriabank_bnm_rates(dt, lookback_days)
+            if not rates:
+                raise exc
+            bnm_date = _to_bnm_date_str(dt)
+            cache_key = f"{CACHE_PREFIX}:{bnm_date}"
         except Exception as e:
             last_error = e
             continue
@@ -162,6 +171,72 @@ def get_bnm_rates_cached(dt: date_cls, lookback_days: int = 10) -> Dict[str, Dec
     if last_error:
         raise last_error
     raise frappe.ValidationError(_("No currency rates found in BNM XML response."))
+
+
+def _parse_victoriabank_bnm_rates(payload: Any) -> Dict[date_cls, Dict[str, Decimal]]:
+    """Map calendar date -> {currency: MDL per 1 unit} using only bnmRate."""
+    by_date: Dict[date_cls, Dict[str, Decimal]] = {}
+    blocks = payload.get("rates") if isinstance(payload, dict) else None
+    if not isinstance(blocks, list):
+        return by_date
+
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        raw_date = str(block.get("fromDate") or "")[:10]
+        try:
+            day = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        rates = by_date.setdefault(day, {})
+        for currency in block.get("currencies") or []:
+            if not isinstance(currency, dict):
+                continue
+            code = str(currency.get("currency") or "").strip().upper()
+            rows = currency.get("currencyRates") or []
+            if not code or not isinstance(rows, list) or not rows:
+                continue
+            row = rows[-1] if isinstance(rows[-1], dict) else None
+            if not row or row.get("bnmRate") in (None, ""):
+                continue
+            value = _parse_decimal(str(row.get("bnmRate")))
+            nominal = _parse_decimal(str(row.get("nominal") or "1"))
+            if nominal != 0:
+                value = value / nominal
+            rates[code] = value
+    return by_date
+
+
+def _victoriabank_bnm_rates(dt: date_cls, lookback_days: int) -> Dict[str, Decimal]:
+    """Latest National Bank rates on or before dt, from one Victoriabank request."""
+    start = dt - timedelta(days=max(0, lookback_days))
+    resp = requests.get(
+        VICTORIABANK_RATES_URL,
+        params={
+            "dateFrom": start.isoformat(),
+            "dateTo": dt.isoformat(),
+            "marketType": VICTORIABANK_MARKET_TYPE,
+            "lang": "ro-RO",
+        },
+        timeout=BNM_TIMEOUT,
+        headers={"Accept": "application/json", "User-Agent": "erpnext-moldova-banking"},
+    )
+    resp.raise_for_status()
+    by_date = _parse_victoriabank_bnm_rates(resp.json())
+    for offset in range(max(0, lookback_days) + 1):
+        rates = by_date.get(dt - timedelta(days=offset))
+        if rates:
+            return rates
+    return {}
+
+
+def use_victoriabank_if_bnm_unavailable() -> bool:
+    try:
+        return bool(
+            int(frappe.db.get_single_value("Moldova Banking Settings", "use_victoriabank_if_bnm_unavailable") or 0)
+        )
+    except Exception:
+        return False
 
 
 def bnm_exchange_rates_disabled() -> bool:

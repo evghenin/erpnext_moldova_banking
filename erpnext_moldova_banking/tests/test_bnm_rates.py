@@ -11,6 +11,7 @@ from frappe.tests.utils import FrappeTestCase
 from erpnext_moldova_banking.api.bnm_rates import (
 	_calc_rate_via_mdl,
 	_fetch_bnm_rates,
+	_parse_victoriabank_bnm_rates,
 	get_bnm_rates_cached,
 )
 
@@ -70,6 +71,31 @@ class TestBnmRates(FrappeTestCase):
 		with patch("erpnext_moldova_banking.api.bnm_rates.requests.get", side_effect=fake_get):
 			rates = get_bnm_rates_cached(date(2026, 9, 17), lookback_days=3)
 		self.assertEqual(rates["EUR"], Decimal("20.1111"))
+
+	def test_victoriabank_parser_uses_bnm_rate_only(self):
+		payload = {
+			"rates": [
+				{
+					"fromDate": "2026-09-23T16:18:00",
+					"currencies": [
+						{
+							"currency": "USD",
+							"currencyRates": [
+								{
+									"baseCurrency": "MDL",
+									"nominal": 1,
+									"buyRate": 17.6,
+									"sellRate": 17.92,
+									"bnmRate": 17.5585,
+								}
+							],
+						}
+					],
+				}
+			]
+		}
+		parsed = _parse_victoriabank_bnm_rates(payload)
+		self.assertEqual(parsed[date(2026, 9, 23)]["USD"], Decimal("17.5585"))
 
 	def test_should_use_bnm_for_mdl_pairs(self):
 		from erpnext_moldova_banking.overrides.exchange_rate import _should_use_bnm
