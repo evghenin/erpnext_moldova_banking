@@ -62,6 +62,7 @@
   "telegram_field_date",
   "excnage_rates_tab",
   "bnm_rates_section",
+  "disable_bnm_exchange_rates",
   "bnm_rates_key",
   "regenerate_bnm_rates_key",
   "configure_currency_exchange_bnm"
@@ -407,18 +408,28 @@
    "label": "BNM Rates"
   },
   {
+   "default": "0",
+   "description": "Do not contact www.bnm.md. Exchange rates are taken only from Currency Exchange records. Use this when the server cannot reach the National Bank of Moldova.",
+   "fieldname": "disable_bnm_exchange_rates",
+   "fieldtype": "Check",
+   "label": "Disable BNM Exchange Rates"
+  },
+  {
+   "depends_on": "eval:!doc.disable_bnm_exchange_rates",
    "description": "Generates a new random API Security Key and replaces the current one. If the BNM rate endpoint is already configured in Currency Exchange Settings, the \"key\" parameter value will be updated automatically; otherwise, you must update it manually.",
    "fieldname": "regenerate_bnm_rates_key",
    "fieldtype": "Button",
    "label": "Generate New API Security Key"
   },
   {
+   "depends_on": "eval:!doc.disable_bnm_exchange_rates",
    "description": "Creates or updates the ERPNext \"Currency Exchange Settings\" to use the BNM rate endpoint from this app, including the correct API URL and required parameters.",
    "fieldname": "configure_currency_exchange_bnm",
    "fieldtype": "Button",
    "label": "Configure Currency Exchange Settings"
   },
   {
+   "depends_on": "eval:!doc.disable_bnm_exchange_rates",
    "description": "Shared secret used to protect the BNM exchange-rate API endpoint. Provide this key as the key parameter in the Currency Exchange Settings API URL. Requests with a missing or incorrect key are rejected.",
    "fieldname": "bnm_rates_key",
    "fieldtype": "Data",
