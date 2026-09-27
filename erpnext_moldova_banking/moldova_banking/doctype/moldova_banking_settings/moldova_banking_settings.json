@@ -63,6 +63,7 @@
   "excnage_rates_tab",
   "bnm_rates_section",
   "disable_bnm_exchange_rates",
+  "use_victoriabank_if_bnm_unavailable",
   "bnm_rates_key",
   "regenerate_bnm_rates_key",
   "configure_currency_exchange_bnm"
@@ -413,6 +414,14 @@
    "fieldname": "disable_bnm_exchange_rates",
    "fieldtype": "Check",
    "label": "Disable BNM Exchange Rates"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:!doc.disable_bnm_exchange_rates",
+   "description": "When www.bnm.md cannot be reached, load the National Bank rate (bnmRate) from Victoriabank. Bank buy and sell rates are not used.",
+   "fieldname": "use_victoriabank_if_bnm_unavailable",
+   "fieldtype": "Check",
+   "label": "Use Victoriabank API if BNM is unavailable"
   },
   {
    "depends_on": "eval:!doc.disable_bnm_exchange_rates",
