@@ -14,7 +14,8 @@ from frappe import _
 
 
 BNM_URL = "https://www.bnm.md/en/official_exchange_rates"
-BNM_TIMEOUT = 30
+# (connect, read). A blackholed route must not hold a web worker for the proxy timeout.
+BNM_TIMEOUT = (5, 10)
 
 CACHE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 CACHE_KEYS_LIST = "bnm:rates:keys:v1"
@@ -138,6 +139,10 @@ def get_bnm_rates_cached(dt: date_cls, lookback_days: int = 10) -> Dict[str, Dec
 
         try:
             rates = _fetch_bnm_rates(candidate)
+        except (requests.Timeout, requests.ConnectionError):
+            # Unpublished dates come back as an empty body, not a dropped connection.
+            # Retrying those network failures across the lookback window pins the worker.
+            raise
         except Exception as e:
             last_error = e
             continue
