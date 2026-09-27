@@ -11,7 +11,11 @@ from frappe.utils import add_days, flt, get_datetime_str, getdate, nowdate
 
 from erpnext.setup.utils import get_pegged_currencies, get_pegged_rate
 
-from erpnext_moldova_banking.api.bnm_rates import _calc_rate_via_mdl, get_bnm_rates_cached
+from erpnext_moldova_banking.api.bnm_rates import (
+	_calc_rate_via_mdl,
+	bnm_exchange_rates_disabled,
+	get_bnm_rates_cached,
+)
 from erpnext_moldova_banking.utils.bnm_key import BNM_METHOD_PATH, _normalize_path
 
 _PATCHED_ATTR = "_moldova_bnm_exchange_rate"
@@ -98,6 +102,9 @@ def get_exchange_rate(from_currency, to_currency, transaction_date=None, args=No
 			src = pegged_currencies[from_currency]["pegged_against"]
 		if to_currency in pegged_currencies:
 			dst = pegged_currencies[to_currency]["pegged_against"]
+
+	if bnm_exchange_rates_disabled():
+		return 0.0
 
 	if _should_use_bnm(src, dst):
 		try:

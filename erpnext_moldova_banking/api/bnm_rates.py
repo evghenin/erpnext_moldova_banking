@@ -164,6 +164,14 @@ def get_bnm_rates_cached(dt: date_cls, lookback_days: int = 10) -> Dict[str, Dec
     raise frappe.ValidationError(_("No currency rates found in BNM XML response."))
 
 
+def bnm_exchange_rates_disabled() -> bool:
+    """True when Moldova Banking Settings forbids any contact with www.bnm.md."""
+    try:
+        return bool(int(frappe.db.get_single_value("Moldova Banking Settings", "disable_bnm_exchange_rates") or 0))
+    except Exception:
+        return False
+
+
 def _require_bnm_key(provided_key: str) -> None:
     settings = frappe.get_single("Moldova Banking Settings")
     expected = (settings.get("bnm_rates_key") or "").strip()
@@ -210,6 +218,9 @@ def get_exchange_rate(
     from frappe.utils import getdate
 
     _require_bnm_key(api_key or key)
+
+    if bnm_exchange_rates_disabled():
+        frappe.throw(_("BNM exchange rates are disabled in Moldova Banking Settings."), frappe.ValidationError)
 
     if not date or not from_currency or not to_currency:
         frappe.throw(_("Missing required parameters: date, from_currency, to_currency, key"), frappe.ValidationError)
