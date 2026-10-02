@@ -2,13 +2,14 @@
 
 Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements and payments), DBO file import, bank transaction automation, BNM FX rates, and Telegram notifications.
 
-**Current version: 2.1.0** (ERPNext v15 / Frappe v15).
+**Current version: 2.2.0** (ERPNext v15 / Frappe v15).
 
 | Line | What it is |
 |---|---|
 | Tag [`v1.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v1.0.0) | Last release before MAIB API (file import, automation, BNM) |
 | Tag [`v2.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.0.0) | MAIB API, Bank Payment Instruction for suppliers, Active Hours, Telegram |
-| Tag [`v2.1.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.1.0) and branches `master` and `v2` | Shareholder and Employee payments, company bank account from the party default |
+| Tag [`v2.1.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.1.0) | Shareholder and Employee payments, company bank account from the party default |
+| Tag [`v2.2.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.2.0) and branches `master` and `v2` | Bank Payment Instruction opened from selected Purchase Invoices, Victoriabank fallback for BNM rates |
 
 ### Features
 

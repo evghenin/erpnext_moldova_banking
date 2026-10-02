@@ -472,6 +472,145 @@ def _resolve_supplier_bank_account(supplier: str) -> str | None:
 	return None
 
 
+def _parse_invoice_names(purchase_invoices) -> list[str]:
+	if isinstance(purchase_invoices, str):
+		purchase_invoices = frappe.parse_json(purchase_invoices)
+	names: list[str] = []
+	seen: set[str] = set()
+	for name in purchase_invoices or []:
+		name = (name or "").strip()
+		if name and name not in seen:
+			seen.add(name)
+			names.append(name)
+	return names
+
+
+def _check_purchase_invoices_for_instruction(names: list[str]) -> dict[str, Any]:
+	"""Return errors and a summary. Does not create a document."""
+	errors: list[str] = []
+	if not names:
+		errors.append(_("Select at least one Purchase Invoice."))
+		return {"ok": False, "errors": errors}
+
+	if not cint(frappe.db.get_single_value("Moldova Banking Settings", "maib_outward_payments_enabled")):
+		errors.append(_("Outward payments are disabled in Moldova Banking Settings."))
+
+	rows = frappe.get_all(
+		"Purchase Invoice",
+		filters={"name": ["in", names]},
+		fields=["name", "docstatus", "company", "supplier", "currency", "outstanding_amount"],
+	)
+	by_name = {row.name: row for row in rows}
+	companies: set[str] = set()
+	suppliers: set[str] = set()
+	currencies: set[str] = set()
+	total = 0.0
+
+	for name in names:
+		pi = by_name.get(name)
+		if not pi:
+			errors.append(_("Purchase Invoice {0} does not exist.").format(name))
+			continue
+		if cint(pi.docstatus) != 1:
+			errors.append(_("Purchase Invoice {0} must be submitted.").format(name))
+		if flt(pi.outstanding_amount) <= 0:
+			errors.append(_("Purchase Invoice {0} has no outstanding amount.").format(name))
+		if pi.company:
+			companies.add(pi.company)
+		if pi.supplier:
+			suppliers.add(pi.supplier)
+		if pi.currency:
+			currencies.add(pi.currency)
+		open_instruction = find_open_instruction_for_invoice(name)
+		if open_instruction:
+			errors.append(
+				_("Purchase Invoice {0} is already on Bank Payment Instruction {1}.").format(name, open_instruction)
+			)
+		total += flt(pi.outstanding_amount)
+
+	company = next(iter(companies)) if len(companies) == 1 else ""
+	supplier = next(iter(suppliers)) if len(suppliers) == 1 else ""
+	currency = next(iter(currencies)) if len(currencies) == 1 else ""
+	if len(companies) > 1:
+		errors.append(_("Selected invoices belong to different companies."))
+	if len(suppliers) > 1:
+		errors.append(_("Selected invoices belong to different suppliers."))
+	if len(currencies) > 1:
+		errors.append(_("Selected invoices use different currencies."))
+
+	party_bank_account = ""
+	company_bank_account = ""
+	if supplier:
+		party_bank_account = _resolve_supplier_bank_account(supplier) or ""
+		if not party_bank_account:
+			errors.append(_("Set a supplier Bank Account for {0}.").format(supplier))
+	if company and supplier:
+		try:
+			company_bank_account = _resolve_company_bank_account(company, "Supplier", supplier)
+		except frappe.ValidationError as exc:
+			errors.append(str(exc))
+
+	return {
+		"ok": not errors,
+		"errors": errors,
+		"company": company,
+		"supplier": supplier,
+		"currency": currency,
+		"count": len(names),
+		"amount": total,
+		"party_bank_account": party_bank_account,
+		"company_bank_account": company_bank_account,
+	}
+
+
+@frappe.whitelist()
+def validate_purchase_invoices_for_instruction(purchase_invoices) -> dict[str, Any]:
+	frappe.has_permission(DOCTYPE, "create", throw=True)
+	return _check_purchase_invoices_for_instruction(_parse_invoice_names(purchase_invoices))
+
+
+@frappe.whitelist()
+def make_from_purchase_invoices(purchase_invoices) -> dict:
+	"""Return a new unsaved Bank Payment Instruction for the selected invoices."""
+	frappe.has_permission(DOCTYPE, "create", throw=True)
+	names = _parse_invoice_names(purchase_invoices)
+	check = _check_purchase_invoices_for_instruction(names)
+	if not check["ok"]:
+		frappe.throw("<br>".join(check["errors"]), title=_("Cannot create Bank Payment Instruction"))
+
+	doc = frappe.new_doc(DOCTYPE)
+	doc.company = check["company"]
+	doc.bank_provider = "MAIB"
+	doc.payment_date = today()
+	doc.company_bank_account = check["company_bank_account"]
+	doc.party_type = "Supplier"
+	doc.party = check["supplier"]
+	doc.party_bank_account = check["party_bank_account"]
+	doc.currency = check["currency"] or frappe.db.get_value("Company", check["company"], "default_currency")
+	for name in names:
+		pi = frappe.db.get_value("Purchase Invoice", name, ["outstanding_amount"], as_dict=True)
+		purpose = get_invoice_payment_purpose(name) or {}
+		doc.append(
+			"invoices",
+			{
+				"purchase_invoice": name,
+				"reference_description": clean_instruction_to_bank(purpose.get("document") or ""),
+				"outstanding_amount": flt(pi.outstanding_amount),
+				"allocated_amount": flt(pi.outstanding_amount),
+			},
+		)
+	doc.instruction_to_bank = build_instruction_to_bank_for_invoices(names)
+	prepare_instruction(doc)
+
+	payload = doc.as_dict()
+	payload["__islocal"] = 1
+	payload.pop("name", None)
+	for row in payload.get("invoices") or []:
+		row.pop("name", None)
+		row.pop("parent", None)
+	return payload
+
+
 @frappe.whitelist()
 def make_from_purchase_invoice(purchase_invoice: str) -> dict:
 	"""Create a draft Bank Payment Instruction from a Purchase Invoice."""

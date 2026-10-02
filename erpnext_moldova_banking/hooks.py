@@ -53,6 +53,10 @@ doctype_js = {
 	"Purchase Invoice": "public/js/purchase_invoice.js",
 }
 
+doctype_list_js = {
+	"Purchase Invoice": "public/js/purchase_invoice_list.js",
+}
+
 # Svg Icons
 # ------------------
 # include app icons in desk
