@@ -1,5 +1,11 @@
-frappe.listview_settings["Purchase Invoice"] = {
-	onload(listview) {
+(() => {
+	const settings = frappe.listview_settings["Purchase Invoice"] || {};
+	const previous_onload = settings.onload;
+
+	settings.onload = function (listview) {
+		if (previous_onload) {
+			previous_onload.call(this, listview);
+		}
 		frappe.db.get_single_value("Moldova Banking Settings", "maib_outward_payments_enabled").then((enabled) => {
 			if (!cint(enabled)) {
 				return;
@@ -58,5 +64,7 @@ frappe.listview_settings["Purchase Invoice"] = {
 				});
 			});
 		});
-	},
-};
+	};
+
+	frappe.listview_settings["Purchase Invoice"] = settings;
+})();
