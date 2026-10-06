@@ -178,7 +178,7 @@ def find_matching_instruction(bt) -> str | None:
 		filters=[
 			["docstatus", "=", 1],
 			["company_bank_account", "=", bt.bank_account],
-			["status", "=", "Executed"],
+			["bank_status", "=", "Executed"],
 			["payment_date", "between", [from_date, to_date]],
 			["amount", ">=", low],
 			["amount", "<=", high],
@@ -286,10 +286,10 @@ def process_instruction_match(
 	if not is_maib_bank_account(doc.company_bank_account) and not doc.get("bank_instruction_id"):
 		return {"ok": False, "skipped": "not_maib"}
 
-	if (doc.get("status") or "") != "Executed":
+	if (doc.get("bank_status") or "") != "Executed":
 		frappe.throw(
 			_("Bank Payment Instruction {0} must be Executed before creating Payment Entry (status: {1}).").format(
-				instruction, doc.get("status") or "Not Sent"
+				instruction, doc.get("bank_status") or "Not Sent"
 			)
 		)
 
@@ -348,7 +348,7 @@ def process_instruction_match(
 def try_match_after_status_update(instruction: str) -> dict[str, Any] | None:
 	if not is_auto_payment_entry_enabled():
 		return None
-	status = frappe.db.get_value(DOCTYPE, instruction, "status")
+	status = frappe.db.get_value(DOCTYPE, instruction, "bank_status")
 	if status != "Executed":
 		return None
 	if frappe.db.get_value(DOCTYPE, instruction, "payment_entry"):
@@ -385,7 +385,7 @@ def process_executed_instructions(limit: int = 50) -> dict[str, Any]:
 
 	rows = frappe.get_all(
 		DOCTYPE,
-		filters={"docstatus": 1, "status": "Executed"},
+		filters={"docstatus": 1, "bank_status": "Executed"},
 		fields=["name", "payment_entry"],
 		order_by="last_sync asc, modified asc",
 		limit=limit * 3,

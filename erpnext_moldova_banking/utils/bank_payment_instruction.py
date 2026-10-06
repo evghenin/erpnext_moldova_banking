@@ -21,7 +21,7 @@ from erpnext_moldova_banking.utils.payment_details import (
 	get_invoice_payment_purpose,
 )
 
-OPEN_BANK_STATUSES = ("Waiting For Authorisation", "In Process")
+OPEN_BANK_STATUSES = ("Waiting For Authorization", "In Process")
 _MAX_DOCUMENT_NUMBER_DIGITS = 9
 DOCTYPE = "Bank Payment Instruction"
 ALLOWED_PARTY_TYPES = ("Company", "Customer", "Supplier", "Shareholder", "Employee")
@@ -208,8 +208,8 @@ def prepare_instruction(doc):
 	if not doc.currency and doc.company:
 		doc.currency = frappe.db.get_value("Company", doc.company, "default_currency")
 
-	if not doc.status:
-		doc.status = "Not Sent"
+	if not doc.bank_status:
+		doc.bank_status = "Not Sent"
 
 
 def get_invoice_allocations(doc) -> list[tuple[str, float]]:
@@ -250,10 +250,10 @@ def find_open_instruction_for_invoice(purchase_invoice: str, exclude: str | None
 	for parent in parents:
 		if exclude and parent == exclude:
 			continue
-		row = frappe.db.get_value(DOCTYPE, parent, ["name", "docstatus", "status"], as_dict=True)
+		row = frappe.db.get_value(DOCTYPE, parent, ["name", "docstatus", "bank_status"], as_dict=True)
 		if not row or cint(row.docstatus) == 2:
 			continue
-		if (row.status or "") == "Rejected":
+		if (row.bank_status or "") == "Rejected":
 			continue
 		return row.name
 	return None
@@ -664,7 +664,7 @@ def send_instruction_to_maib(name: str) -> dict[str, Any]:
 	if doc.bank_provider != "MAIB":
 		frappe.throw(_("Bank provider {0} is not supported.").format(doc.bank_provider))
 
-	status = doc.get("status") or "Not Sent"
+	status = doc.get("bank_status") or "Not Sent"
 	if doc.get("bank_instruction_id") and status not in ("Not Sent", "API Error", "Rejected"):
 		frappe.throw(
 			_("Instruction already sent to the bank (status: {0}, instruction: {1}).").format(
@@ -679,7 +679,7 @@ def send_instruction_to_maib(name: str) -> dict[str, Any]:
 	try:
 		result = create_ordinary_payment(payload, company=doc.company)
 	except Exception as e:
-		_set_instruction_fields(doc.name, {"status": "API Error", "api_error": str(e)[:1000]})
+		_set_instruction_fields(doc.name, {"bank_status": "API Error", "api_error": str(e)[:1000]})
 		frappe.db.commit()
 		raise
 
@@ -687,7 +687,7 @@ def send_instruction_to_maib(name: str) -> dict[str, Any]:
 		doc.name,
 		{
 			"bank_instruction_id": result["instruction_id"],
-			"status": "Waiting For Authorisation",
+			"bank_status": "Waiting For Authorization",
 			"api_error": "",
 			"bank_comment": "",
 			"document_number": payload["document_number"],
@@ -704,7 +704,7 @@ def send_instruction_to_maib(name: str) -> dict[str, Any]:
 	return {
 		"name": doc.name,
 		"bank_instruction_id": doc.get("bank_instruction_id"),
-		"status": doc.get("status"),
+		"status": doc.get("bank_status"),
 	}
 
 
@@ -725,7 +725,7 @@ def refresh_instruction_status(name: str) -> dict[str, Any]:
 			frappe.clear_messages()
 		values = {"api_error": str(e)[:1000]}
 		if not soft:
-			values["status"] = "API Error"
+			values["bank_status"] = "API Error"
 		_set_instruction_fields(doc.name, values)
 		frappe.db.commit()
 		if soft:
@@ -733,7 +733,7 @@ def refresh_instruction_status(name: str) -> dict[str, Any]:
 			return {
 				"name": doc.name,
 				"bank_instruction_id": doc.get("bank_instruction_id"),
-				"status": doc.get("status"),
+				"status": doc.get("bank_status"),
 				"soft_error": True,
 			}
 		raise
@@ -745,7 +745,7 @@ def refresh_instruction_status(name: str) -> dict[str, Any]:
 		)
 		frappe.db.commit()
 		doc.reload()
-		return {"name": doc.name, "status": doc.get("status")}
+		return {"name": doc.name, "status": doc.get("bank_status")}
 
 	state = states[0]
 	mapped = map_maib_status(state.get("status"))
@@ -759,7 +759,7 @@ def refresh_instruction_status(name: str) -> dict[str, Any]:
 	_set_instruction_fields(
 		doc.name,
 		{
-			"status": mapped,
+			"bank_status": mapped,
 			"bank_comment": comment[:1000],
 			"api_error": "",
 		},
@@ -776,7 +776,7 @@ def refresh_instruction_status(name: str) -> dict[str, Any]:
 	result = {
 		"name": doc.name,
 		"bank_instruction_id": doc.get("bank_instruction_id"),
-		"status": doc.get("status"),
+		"status": doc.get("bank_status"),
 		"bank_comment": doc.get("bank_comment"),
 		"raw_status": state.get("status"),
 	}
@@ -794,7 +794,7 @@ def poll_open_instructions(limit: int = 50) -> dict[str, Any]:
 		filters={
 			"docstatus": 1,
 			"bank_provider": "MAIB",
-			"status": ["in", list(OPEN_BANK_STATUSES)],
+			"bank_status": ["in", list(OPEN_BANK_STATUSES)],
 			"bank_instruction_id": ["is", "set"],
 		},
 		fields=["name", "company", "bank_instruction_id"],
@@ -835,7 +835,7 @@ def poll_open_instructions(limit: int = 50) -> dict[str, Any]:
 			_set_instruction_fields(
 				row.name,
 				{
-					"status": mapped,
+					"bank_status": mapped,
 					"bank_comment": " | ".join(p for p in comment_parts if p)[:1000],
 					"api_error": "",
 				},
