@@ -30,6 +30,13 @@ def execute():
 			AND IFNULL(`status`, '') != ''
 		"""
 	)
+	frappe.db.sql(
+		f"""
+		UPDATE `tab{DOCTYPE}`
+		SET `bank_status` = 'Waiting For Authorization'
+		WHERE `bank_status` = 'Waiting For Authorisation'
+		"""
+	)
 
 	if frappe.db.table_exists("Property Setter"):
 		frappe.db.sql(
