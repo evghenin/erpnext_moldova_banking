@@ -42,7 +42,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		frappe.db.rollback()
 
 	def test_status_map(self):
-		self.assertEqual(map_maib_status("RequiresAction"), "Waiting For Authorisation")
+		self.assertEqual(map_maib_status("RequiresAction"), "Waiting For Authorization")
 		self.assertEqual(map_maib_status("Succeeded"), "Executed")
 		self.assertEqual(map_maib_status("Rejected"), "Rejected")
 		self.assertEqual(map_maib_status(""), "API Error")
@@ -241,7 +241,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		doc.company = "Best Test SRL"
 		doc.get.side_effect = lambda key: {
 			"bank_instruction_id": "202608300004776",
-			"status": "Executed",
+			"bank_status": "Executed",
 			"bank_comment": "accepted",
 		}.get(key)
 		mock_get_doc.return_value = doc
@@ -256,7 +256,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 			result = refresh_instruction_status(doc.name)
 
 		mock_query.assert_called_once_with(["202608300004776"], company="Best Test SRL")
-		self.assertEqual(mock_set_fields.call_args.args[1]["status"], "Executed")
+		self.assertEqual(mock_set_fields.call_args.args[1]["bank_status"], "Executed")
 		self.assertEqual(result["raw_status"], "Succeeded")
 		self.assertEqual(result["payment_match"], {"ok": True})
 
@@ -272,7 +272,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		doc.company = "Best Test SRL"
 		doc.get.side_effect = lambda key: {
 			"bank_instruction_id": "202608300004776",
-			"status": "Waiting For Authorisation",
+			"bank_status": "Waiting For Authorization",
 		}.get(key)
 		mock_get_doc.return_value = doc
 		mock_query.side_effect = frappe.ValidationError("TransfersService.NotFound")
@@ -281,7 +281,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		result = refresh_instruction_status(doc.name)
 
 		mock_query.assert_called_once_with(["202608300004776"], company="Best Test SRL")
-		self.assertNotIn("status", mock_set_fields.call_args.args[1])
+		self.assertNotIn("bank_status", mock_set_fields.call_args.args[1])
 		self.assertTrue(result["soft_error"])
 		del frappe.local.maib_last_http_error
 

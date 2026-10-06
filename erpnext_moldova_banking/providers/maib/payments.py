@@ -49,11 +49,13 @@ TRANSFER_DETAIL_LABELS = (
 	("TransferType", "Transfer Type / Status"),
 )
 
-# MAIB API status → app Bank Payment Instruction.status
+# MAIB API status → app Bank Payment Instruction.bank_status
 STATUS_MAP = {
-	"RequiresAction": "Waiting For Authorisation",
-	"Waiting For Authorisation": "Waiting For Authorisation",
-	"WaitingForAuthorisation": "Waiting For Authorisation",
+	"RequiresAction": "Waiting For Authorization",
+	"Waiting For Authorisation": "Waiting For Authorization",
+	"Waiting For Authorization": "Waiting For Authorization",
+	"WaitingForAuthorisation": "Waiting For Authorization",
+	"WaitingForAuthorization": "Waiting For Authorization",
 	"InProcess": "In Process",
 	"In Process": "In Process",
 	"Processing": "In Process",

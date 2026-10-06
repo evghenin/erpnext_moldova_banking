@@ -86,7 +86,7 @@ class TestMaibPaymentMatch(FrappeTestCase):
 			"Bank Payment Instruction",
 			doc.name,
 			{
-				"status": "Executed",
+				"bank_status": "Executed",
 				"bank_instruction_id": f"INS{frappe.generate_hash(length=8)}",
 				"document_number": doc_number,
 			},
@@ -232,7 +232,7 @@ class TestMaibPaymentMatch(FrappeTestCase):
 			"Bank Payment Instruction",
 			doc.name,
 			{
-				"status": "Executed",
+				"bank_status": "Executed",
 				"bank_instruction_id": f"INS{frappe.generate_hash(length=8)}",
 				"document_number": doc_number,
 			},

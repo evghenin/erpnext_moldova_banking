@@ -83,7 +83,7 @@ frappe.ui.form.on("Bank Payment Instruction", {
 				return;
 			}
 
-			const status = frm.doc.status || "Not Sent";
+			const status = frm.doc.bank_status || "Not Sent";
 			const can_send =
 				!frm.doc.bank_instruction_id || ["Not Sent", "API Error", "Rejected"].includes(status);
 

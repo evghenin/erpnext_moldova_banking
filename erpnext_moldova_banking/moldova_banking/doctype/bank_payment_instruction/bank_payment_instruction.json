@@ -11,7 +11,7 @@
   "bank_provider",
   "column_break_head",
   "payment_date",
-  "status",
+  "bank_status",
   "section_payer",
   "company_bank_account",
   "source_iban",
@@ -91,13 +91,13 @@
   {
    "allow_on_submit": 1,
    "default": "Not Sent",
-   "fieldname": "status",
+   "fieldname": "bank_status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Bank Status",
    "no_copy": 1,
-   "options": "Not Sent\nWaiting For Authorisation\nIn Process\nExecuted\nRejected\nAPI Error",
+   "options": "Not Sent\nWaiting For Authorization\nIn Process\nExecuted\nRejected\nAPI Error",
    "read_only": 1
   },
   {
