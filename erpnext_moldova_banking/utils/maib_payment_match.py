@@ -218,21 +218,11 @@ def _company_bank_gl(company_bank_account: str) -> str:
 	return account
 
 
-def _create_payment_entry(doc, bt):
-	allocations = get_invoice_allocations(doc)
-	if not allocations:
-		frappe.throw(_("Bank Payment Instruction {0} has no Purchase Invoice.").format(doc.name))
+# Payment Entry party types. Company payments are not party vouchers.
+_PE_PARTY_TYPES = ("Customer", "Supplier", "Employee", "Shareholder")
 
-	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
-	bank_gl = _company_bank_gl(doc.company_bank_account)
-	first_pi, first_amt = allocations[0]
-	pe = get_payment_entry(
-		"Purchase Invoice",
-		first_pi,
-		party_amount=first_amt,
-		bank_account=bank_gl,
-	)
+def _apply_payment_header(pe, doc, bt, bank_gl):
 	pe.paid_from = bank_gl
 	pe.posting_date = getdate(bt.date)
 	pe.reference_date = getdate(bt.date)
@@ -244,6 +234,60 @@ def _create_payment_entry(doc, bt):
 	if pe.payment_type == "Pay":
 		pe.paid_amount = amount
 		pe.received_amount = amount
+
+
+def _create_unallocated_payment_entry(doc, bt, bank_gl):
+	"""Pay the BPI party without allocating to a Purchase Invoice."""
+	if doc.party_type not in _PE_PARTY_TYPES or not doc.party:
+		return None
+
+	from erpnext.accounts.doctype.payment_entry.payment_entry import get_party_details
+	from erpnext.setup.utils import get_exchange_rate
+
+	posting_date = getdate(bt.date)
+	details = get_party_details(doc.company, doc.party_type, doc.party, posting_date)
+	if not details.get("party_account"):
+		frappe.throw(
+			_("Party {0} has no account in company {1}.").format(doc.party, doc.company)
+		)
+
+	pe = frappe.new_doc("Payment Entry")
+	pe.payment_type = "Pay"
+	pe.company = doc.company
+	pe.party_type = doc.party_type
+	pe.party = doc.party
+	pe.party_name = details.get("party_name")
+	pe.paid_to = details["party_account"]
+	pe.paid_to_account_currency = details.get("party_account_currency")
+	bank_currency = frappe.db.get_value("Account", bank_gl, "account_currency")
+	pe.paid_from_account_currency = bank_currency
+	_apply_payment_header(pe, doc, bt, bank_gl)
+	company_currency = frappe.db.get_value("Company", doc.company, "default_currency")
+	if bank_currency and bank_currency != company_currency:
+		pe.source_exchange_rate = get_exchange_rate(bank_currency, company_currency, posting_date)
+	if pe.paid_to_account_currency and pe.paid_to_account_currency != company_currency:
+		pe.target_exchange_rate = get_exchange_rate(pe.paid_to_account_currency, company_currency, posting_date)
+	pe.insert(ignore_permissions=True)
+	pe.submit()
+	return pe
+
+
+def _create_payment_entry(doc, bt):
+	allocations = get_invoice_allocations(doc)
+	bank_gl = _company_bank_gl(doc.company_bank_account)
+	if not allocations:
+		return _create_unallocated_payment_entry(doc, bt, bank_gl)
+
+	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+	first_pi, first_amt = allocations[0]
+	pe = get_payment_entry(
+		"Purchase Invoice",
+		first_pi,
+		party_amount=first_amt,
+		bank_account=bank_gl,
+	)
+	_apply_payment_header(pe, doc, bt, bank_gl)
 
 	pe.set("references", [])
 	for pi_name, allocated in allocations:
@@ -321,6 +365,8 @@ def process_instruction_match(
 
 	try:
 		pe = _create_payment_entry(doc, bt)
+		if not pe:
+			return {"ok": False, "skipped": "no_party_account", "instruction": doc.name}
 		reconcile_pe_and_bt(pe, bt)
 		_set_instruction_fields(
 			doc.name,
