@@ -14,6 +14,7 @@ frappe.ui.form.on("Bank Payment Instruction", {
 	refresh(frm) {
 		keep_beneficiary_fields_visible(frm);
 		toggle_manual_payment(frm);
+		reset_copied_bank_response(frm);
 		frm.trigger("toggle_bank_buttons");
 	},
 
@@ -390,6 +391,27 @@ function set_company_bank_account(frm) {
 			}
 		},
 	});
+}
+
+function reset_copied_bank_response(frm) {
+	if (!frm.is_new() || !frm.doc.amended_from || frm._bank_response_cleared) {
+		return;
+	}
+	frm._bank_response_cleared = true;
+	const fields = [
+		"document_number",
+		"bank_instruction_id",
+		"last_sync",
+		"bank_comment",
+		"api_error",
+		"payment_entry",
+		"linked_bank_transaction",
+	];
+	frm.doc.bank_status = "Not Sent";
+	fields.forEach((fieldname) => {
+		frm.doc[fieldname] = null;
+	});
+	frm.refresh_fields(["bank_status", ...fields]);
 }
 
 function clear_beneficiary(frm) {
