@@ -45,6 +45,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		self.assertEqual(map_maib_status("RequiresAction"), "Waiting For Authorization")
 		self.assertEqual(map_maib_status("Succeeded"), "Executed")
 		self.assertEqual(map_maib_status("Rejected"), "Rejected")
+		self.assertEqual(map_maib_status("Canceled"), "Canceled")
 		self.assertEqual(map_maib_status(""), "API Error")
 		self.assertEqual(map_maib_status("SomethingNew"), "In Process")
 

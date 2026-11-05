@@ -64,7 +64,7 @@ STATUS_MAP = {
 	"Completed": "Executed",
 	"Rejected": "Rejected",
 	"Failed": "Rejected",
-	"Cancelled": "Rejected",
+	"Canceled": "Canceled",
 }
 
 

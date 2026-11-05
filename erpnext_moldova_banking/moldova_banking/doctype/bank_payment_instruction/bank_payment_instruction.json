@@ -97,7 +97,7 @@
    "in_standard_filter": 1,
    "label": "Bank Status",
    "no_copy": 1,
-   "options": "Not Sent\nWaiting For Authorization\nIn Process\nExecuted\nRejected\nAPI Error",
+   "options": "Not Sent\nWaiting For Authorization\nIn Process\nExecuted\nRejected\nCanceled\nAPI Error",
    "read_only": 1
   },
   {
@@ -335,7 +335,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-14 23:55:00.000000",
+ "modified": "2026-11-05 23:10:00.000000",
  "modified_by": "Administrator",
  "module": "Moldova Banking",
  "name": "Bank Payment Instruction",
