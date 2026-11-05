@@ -141,26 +141,39 @@ frappe.ui.form.on("Bank Payment Instruction", {
 		});
 	},
 
+	instruction_to_bank(frm) {
+		if (frm._setting_instruction_to_bank) {
+			return;
+		}
+		frm._instruction_to_bank_manual = true;
+	},
+
 	rebuild_instruction_to_bank(frm) {
 		if (is_manual_payment(frm)) {
 			return;
 		}
+		frm._instruction_to_bank_manual = false;
 		const invoices = (frm.doc.invoices || [])
 			.map((row) => row.purchase_invoice)
 			.filter(Boolean);
 		const documents = (frm.doc.invoices || [])
 			.map((row) => (row.reference_description || "").trim())
 			.filter(Boolean);
+		const request_id = (frm._instruction_request_id || 0) + 1;
+		frm._instruction_request_id = request_id;
 		if (!invoices.length && !documents.length) {
-			frm.set_value("instruction_to_bank", "");
+			set_instruction_to_bank(frm, "");
 			return;
 		}
 		frappe.call({
 			method: "erpnext_moldova_banking.utils.bank_payment_instruction.preview_instruction_to_bank",
 			args: { purchase_invoices: invoices, documents: documents },
 			callback(r) {
+				if (frm._instruction_request_id !== request_id || frm._instruction_to_bank_manual) {
+					return;
+				}
 				if (r.message) {
-					frm.set_value("instruction_to_bank", r.message);
+					set_instruction_to_bank(frm, r.message);
 				}
 			},
 		});
@@ -206,7 +219,10 @@ frappe.ui.form.on("Bank Payment Instruction Invoice", {
 	purchase_invoice(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
 		if (!row.purchase_invoice) {
+			row.reference_description = "";
+			frappe.model.set_value(cdt, cdn, "reference_description", "");
 			sum_allocated_amount(frm);
+			frm.trigger("rebuild_instruction_to_bank");
 			return;
 		}
 		frappe.call({
@@ -238,9 +254,7 @@ frappe.ui.form.on("Bank Payment Instruction Invoice", {
 		const cleaned = cleanInstructionToBank(row.reference_description || "");
 		if (cleaned !== (row.reference_description || "")) {
 			frappe.model.set_value(cdt, cdn, "reference_description", cleaned);
-			return;
 		}
-		frm.trigger("rebuild_instruction_to_bank");
 	},
 
 	invoices_remove(frm) {
@@ -288,6 +302,14 @@ function invoice_filters(frm) {
 		filters.currency = frm.doc.currency;
 	}
 	return { filters };
+}
+
+function set_instruction_to_bank(frm, value) {
+	frm._setting_instruction_to_bank = true;
+	Promise.resolve(frm.set_value("instruction_to_bank", value)).finally(() => {
+		frm._setting_instruction_to_bank = false;
+		frm._instruction_to_bank_manual = false;
+	});
 }
 
 function sum_allocated_amount(frm) {
