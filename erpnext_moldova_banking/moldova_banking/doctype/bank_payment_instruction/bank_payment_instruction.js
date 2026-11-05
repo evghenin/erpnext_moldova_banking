@@ -11,6 +11,10 @@ frappe.ui.form.on("Bank Payment Instruction", {
 		keep_beneficiary_fields_visible(frm);
 	},
 
+	onload(frm) {
+		reset_copied_bank_response(frm);
+	},
+
 	refresh(frm) {
 		keep_beneficiary_fields_visible(frm);
 		toggle_manual_payment(frm);
@@ -394,11 +398,11 @@ function set_company_bank_account(frm) {
 }
 
 function reset_copied_bank_response(frm) {
-	if (!frm.is_new() || !frm.doc.amended_from || frm._bank_response_cleared) {
+	if (!frm.doc || !frm.doc.__islocal) {
 		return;
 	}
-	frm._bank_response_cleared = true;
 	const fields = [
+		"bank_status",
 		"document_number",
 		"bank_instruction_id",
 		"last_sync",
@@ -407,11 +411,18 @@ function reset_copied_bank_response(frm) {
 		"payment_entry",
 		"linked_bank_transaction",
 	];
-	frm.doc.bank_status = "Not Sent";
+	let changed = false;
 	fields.forEach((fieldname) => {
-		frm.doc[fieldname] = null;
+		const empty = fieldname === "bank_status" ? "Not Sent" : "";
+		if ((frm.doc[fieldname] || "") === empty) {
+			return;
+		}
+		frm.doc[fieldname] = empty;
+		changed = true;
 	});
-	frm.refresh_fields(["bank_status", ...fields]);
+	if (changed && frm.layout) {
+		frm.refresh_fields();
+	}
 }
 
 function clear_beneficiary(frm) {

@@ -5,8 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-# Cleared on Amend. The desk copies no_copy fields when amending, so the
-# controller has to drop the previous bank response before insert.
+# Duplicate copies these fields. Amend copies them even when no_copy is set.
 _BANK_RESPONSE_FIELDS = (
 	"document_number",
 	"bank_instruction_id",
@@ -20,8 +19,6 @@ _BANK_RESPONSE_FIELDS = (
 
 class BankPaymentInstruction(Document):
 	def before_insert(self):
-		if not self.amended_from:
-			return
 		self.bank_status = "Not Sent"
 		for fieldname in _BANK_RESPONSE_FIELDS:
 			self.set(fieldname, None)
