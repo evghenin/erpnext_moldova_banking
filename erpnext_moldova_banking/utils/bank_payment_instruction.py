@@ -195,10 +195,7 @@ def prepare_instruction(doc):
 			for row in doc.get("invoices") or []
 			if (row.get("reference_description") or "").strip()
 		]
-		if invoice_names or documents:
-			doc.instruction_to_bank = build_instruction_to_bank_for_invoices(
-				invoice_names, documents=documents or None
-			)
+		doc.instruction_to_bank = _resolve_instruction_to_bank(doc, invoice_names, documents)
 
 	if doc.instruction_to_bank:
 		doc.instruction_to_bank = clean_instruction_to_bank(doc.instruction_to_bank)
@@ -210,6 +207,87 @@ def prepare_instruction(doc):
 
 	if not doc.bank_status:
 		doc.bank_status = "Not Sent"
+
+
+def purchase_invoice_names(doc) -> list[str]:
+	names = []
+	for row in doc.get("invoices") or []:
+		name = (row.get("purchase_invoice") or "").strip()
+		if name:
+			names.append(name)
+	return names
+
+
+def resolve_instruction_to_bank(
+	previous_names,
+	current_names,
+	current_text: str,
+	generated_old: str,
+	generated_new: str,
+) -> str:
+	"""Keep a manual Payment Description unless the invoice list changed.
+
+	``previous_names is None`` for a document that is not saved yet: text already
+	typed on the form is kept, and an empty field is filled from the invoices.
+	On a saved document the generated text replaces the field only when the
+	Purchase Invoice list changed and the current text is still the previous
+	generated value (or empty). A different manual value is left as entered.
+	"""
+	text = current_text or ""
+	if previous_names is None:
+		return generated_new if not text.strip() else text
+	if list(previous_names) == list(current_names):
+		return text
+	if not text.strip() or text.strip() == (generated_old or "").strip():
+		return generated_new
+	return text
+
+
+def _saved_invoice_rows(doc) -> list[dict] | None:
+	if doc.get("__islocal") or not doc.get("name") or not frappe.db.exists(DOCTYPE, doc.name):
+		return None
+	return frappe.get_all(
+		"Bank Payment Instruction Invoice",
+		filters={"parent": doc.name, "parenttype": DOCTYPE},
+		fields=["purchase_invoice", "reference_description"],
+		order_by="idx asc",
+	)
+
+
+def _generated_instruction(invoice_names: list[str], documents: list[str] | None) -> str:
+	if not invoice_names and not documents:
+		return ""
+	return build_instruction_to_bank_for_invoices(invoice_names, documents=documents or None)
+
+
+def _resolve_instruction_to_bank(doc, invoice_names: list[str], documents: list[str]) -> str:
+	current_names = purchase_invoice_names(doc)
+	saved_rows = _saved_invoice_rows(doc)
+	previous_names = None
+	generated_old = ""
+	generated_new = ""
+	list_changed = True
+	if saved_rows is not None:
+		previous_names = [
+			(row.purchase_invoice or "").strip() for row in saved_rows if (row.purchase_invoice or "").strip()
+		]
+		list_changed = previous_names != current_names
+		if list_changed:
+			old_documents = [
+				(row.reference_description or "").strip()
+				for row in saved_rows
+				if (row.reference_description or "").strip()
+			]
+			generated_old = _generated_instruction(previous_names, old_documents)
+	if list_changed and not (previous_names is None and (doc.instruction_to_bank or "").strip()):
+		generated_new = _generated_instruction(invoice_names, documents)
+	return resolve_instruction_to_bank(
+		previous_names,
+		current_names,
+		doc.instruction_to_bank or "",
+		generated_old,
+		generated_new,
+	)
 
 
 def get_invoice_allocations(doc) -> list[tuple[str, float]]:
