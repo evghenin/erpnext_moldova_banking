@@ -15,7 +15,7 @@ class TestRestoreCrossedDescriptions(FrappeTestCase):
 		description = "Wrong payment\n\nTransaction ID: 214498114755446.030002\nPayer IDNO: 1000000000001"
 		self.assertEqual(transaction_id_from_description(description), "214498114755446.030002")
 
-	def test_match_requires_amount_document_party_and_transaction(self):
+	def test_transaction_id_and_amount_match_without_the_same_party_text(self):
 		bt = {
 			"deposit": 2800,
 			"withdrawal": 0,
@@ -27,18 +27,16 @@ class TestRestoreCrossedDescriptions(FrappeTestCase):
 			"deposit": 2800,
 			"withdrawal": 0,
 			"document_number": "1",
-			"cp_name": "Payer Company SRL",
-			"transaction_id": "111.030002",
+			"cp_name": "Payer   Company SRL",
+			"transaction_id": "111",
 			"payment_destination": "Payment for goods",
 			"credit_or_debit": "C",
 			"cp_idno": "1000000000003",
 			"date": "2026-09-21",
 		}
-		other_party = {**same, "cp_name": "Other Company SRL"}
-		other_txn = {**same, "transaction_id": "222.030002"}
+		other_txn = {**same, "transaction_id": "222.030002", "cp_name": "Payer Company SRL"}
 
 		self.assertTrue(statement_row_matches(bt, same))
-		self.assertFalse(statement_row_matches(bt, other_party))
 		self.assertFalse(statement_row_matches(bt, other_txn))
 
 	def test_restored_description_uses_statement_payer(self):
