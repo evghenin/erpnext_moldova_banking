@@ -60,7 +60,7 @@ def execute():
 		try:
 			statement_rows = _statement_rows(bt, statement_cache)
 		except Exception as exc:
-			frappe.log_error(frappe.get_traceback(), f"MAIB statement reload failed for {bt.name}")
+			frappe.log_error(f"MAIB reload {bt.name}"[:140], frappe.get_traceback())
 			failures.append(f"{bt.name} ({exc})")
 			continue
 
@@ -105,11 +105,26 @@ def _norm_party(value: str) -> str:
 	return "".join((value or "").split()).casefold()
 
 
-def transaction_id_from_description(description: str) -> str:
+def _line_value(description: str, label: str) -> str:
+	prefix = f"{label}:"
 	for line in (description or "").splitlines():
-		if line.startswith("Transaction ID:"):
+		if line.startswith(prefix):
 			return line.split(":", 1)[1].strip()
 	return ""
+
+
+def transaction_id_from_description(description: str) -> str:
+	return _line_value(description, "Transaction ID")
+
+
+def date_written_from_description(description: str):
+	text = _line_value(description, "Date Written")
+	if not text:
+		return None
+	try:
+		return getdate(text)
+	except Exception:
+		return None
 
 
 def _same_transaction_id(stored: str, statement: str) -> bool:
@@ -154,11 +169,46 @@ def statement_row_matches(bt, row: dict) -> bool:
 	return bool(party and counterparty and party == counterparty)
 
 
+def _query_dates(bt) -> list:
+	dates = []
+	for raw in (date_written_from_description(bt.get("description") or ""), bt.get("date")):
+		if not raw:
+			continue
+		day = getdate(raw)
+		if day not in dates:
+			dates.append(day)
+	return dates
+
+
 def _statement_rows(bt, cache: dict[tuple[str, str, str], list[dict]]) -> list[dict]:
-	posting_date = getdate(bt.date)
-	from_date = add_days(posting_date, -14)
-	to_date = add_days(posting_date, 14)
-	key = (bt.bank_account, str(from_date), str(to_date))
+	"""Load the statement days that can contain this receipt.
+
+	Date Written is the bank document date and can differ from Bank Transaction.date.
+	A short window that misses both days comes back as an empty statement.
+	"""
+	found: list[dict] = []
+	seen: set[tuple] = set()
+	for day in _query_dates(bt):
+		for row in _fetch_range(bt, day, day, cache):
+			identity = (
+				row.get("transaction_id") or "",
+				row.get("document_number") or "",
+				flt(row.get("deposit")),
+				flt(row.get("withdrawal")),
+			)
+			if identity in seen:
+				continue
+			seen.add(identity)
+			found.append(row)
+	if found:
+		return found
+
+	center = _query_dates(bt)[0]
+	return _fetch_range(bt, add_days(center, -31), add_days(center, 31), cache)
+
+
+def _fetch_range(bt, from_date, to_date, cache: dict[tuple[str, str, str], list[dict]]) -> list[dict]:
+	key = (bt.bank_account, str(getdate(from_date)), str(getdate(to_date)))
 	if key in cache:
 		return cache[key]
 
@@ -166,8 +216,8 @@ def _statement_rows(bt, cache: dict[tuple[str, str, str], list[dict]]) -> list[d
 	frappe.db.commit()
 	xml_text = fetch_statement_xml(
 		account_id,
-		from_date.strftime("%Y%m%d"),
-		to_date.strftime("%Y%m%d"),
+		getdate(from_date).strftime("%Y%m%d"),
+		getdate(to_date).strftime("%Y%m%d"),
 		company=bt.company,
 	)
 	cache[key] = parse_statement_xml(xml_text)
