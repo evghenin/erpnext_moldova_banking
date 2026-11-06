@@ -71,13 +71,8 @@ def execute():
 			continue
 
 		description = build_maib_transaction_description(matches[0])
-		company_idno = _digits(bt.company_idno)
-		if (
-			not description
-			or description == (bt.description or "")
-			or (company_idno and f"Payer IDNO: {company_idno}" in description)
-		):
-			failures.append(f"{bt.name} (statement text still names our company as payer)")
+		if not description or description == (bt.description or ""):
+			failures.append(f"{bt.name} (statement text is empty or unchanged)")
 			continue
 
 		frappe.db.set_value(
@@ -97,8 +92,9 @@ def execute():
 			f"Restored {restored} bank transaction description(s). "
 			f"Could not restore {len(failures)}: {'; '.join(failures)}"
 		)
-		frappe.log_error(message, "Restore crossed bank transaction descriptions")
-		print(message)
+		# Title is limited to 140 characters. The names belong in the message body.
+		frappe.log_error("Restore crossed descriptions", message)
+		print(f"Restored {restored}, could not restore {len(failures)}. See Error Log.")
 
 
 def _digits(value: str) -> str:
@@ -160,9 +156,8 @@ def statement_row_matches(bt, row: dict) -> bool:
 
 def _statement_rows(bt, cache: dict[tuple[str, str, str], list[dict]]) -> list[dict]:
 	posting_date = getdate(bt.date)
-	# The statement date and the Bank Transaction date can differ by a day.
-	from_date = add_days(posting_date, -3)
-	to_date = add_days(posting_date, 3)
+	from_date = add_days(posting_date, -14)
+	to_date = add_days(posting_date, 14)
 	key = (bt.bank_account, str(from_date), str(to_date))
 	if key in cache:
 		return cache[key]
