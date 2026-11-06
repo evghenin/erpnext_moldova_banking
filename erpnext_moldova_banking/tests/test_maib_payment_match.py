@@ -36,7 +36,7 @@ class TestMaibPaymentMatch(FrappeTestCase):
 		ensure_test_item()
 
 	def setUp(self):
-		self.tax_id = ensure_supplier_tax_id("_Test Supplier", "1002600015382")
+		self.tax_id = ensure_supplier_tax_id("_Test Supplier", "1000000000005")
 		self.bank_account, self.gl_account = create_maib_company_bank_account()
 		self.party_bank_account = create_party_bank_account("Supplier", "_Test Supplier")
 		enable_maib_settings(outward=True, auto_pe=True, api=True)

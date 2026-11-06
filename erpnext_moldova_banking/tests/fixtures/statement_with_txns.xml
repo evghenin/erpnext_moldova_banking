@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
     <Operational>
-        <Account value="22514040174">
+        <Account value="22510000002">
             <Currency>MDL</Currency>
             <Balance>
                 <Initial>
@@ -18,8 +18,8 @@
                 <FinalBalance>45210.45</FinalBalance>
                 <Transaction>
                     <DocumentNumber>123456789</DocumentNumber>
-                    <ContraParty value="(R)SPRING LIMITED">
-                        <FiscalCode>1506601000031</FiscalCode>
+                    <ContraParty value="Payer Company SRL">
+                        <FiscalCode>1000000000004</FiscalCode>
                     </ContraParty>
                     <PaymentDestination>Invoice payment</PaymentDestination>
                     <CreditOrDebit>C</CreditOrDebit>
@@ -29,7 +29,7 @@
                 <Transaction>
                     <DocumentNumber>999</DocumentNumber>
                     <ContraParty value="X">
-                        <FiscalCode>1002600015382</FiscalCode>
+                        <FiscalCode>1000000000005</FiscalCode>
                     </ContraParty>
                     <PaymentDestination>Outgoing</PaymentDestination>
                     <CreditOrDebit>D</CreditOrDebit>

@@ -19,7 +19,7 @@ class TestMaibStatementParse(FrappeTestCase):
 		self.assertEqual(credit["reference_number"], "123456789")
 		self.assertEqual(credit["document_number"], "123456789")
 		self.assertEqual(credit["transaction_id"], "987654321")
-		self.assertEqual(credit["cp_idno"], "1506601000031")
+		self.assertEqual(credit["cp_idno"], "1000000000004")
 		self.assertEqual(str(credit["date"]), "2011-02-01")
 		self.assertEqual(
 			credit["description"],
@@ -28,8 +28,8 @@ class TestMaibStatementParse(FrappeTestCase):
 			"Amount: 1351.28\n"
 			"Document Number: 123456789\n"
 			"Date Written: 01.02.2011\n"
-			"Payer: (R)SPRING LIMITED\n"
-			"Payer IDNO: 1506601000031\n"
+			"Payer: Payer Company SRL\n"
+			"Payer IDNO: 1000000000004\n"
 			"Transaction ID: 987654321\n"
 			"Currency: MDL\n"
 			"Credit/Debit: C",
@@ -40,7 +40,7 @@ class TestMaibStatementParse(FrappeTestCase):
 		self.assertEqual(debit["reference_number"], "999")
 		self.assertEqual(debit["document_number"], "999")
 		self.assertEqual(debit["transaction_id"], "111")
-		self.assertEqual(debit["cp_idno"], "1002600015382")
+		self.assertEqual(debit["cp_idno"], "1000000000005")
 		self.assertEqual(
 			debit["description"],
 			"Outgoing\n"
@@ -49,7 +49,7 @@ class TestMaibStatementParse(FrappeTestCase):
 			"Document Number: 999\n"
 			"Date Written: 01.02.2011\n"
 			"Receiver: X\n"
-			"Receiver IDNO: 1002600015382\n"
+			"Receiver IDNO: 1000000000005\n"
 			"Transaction ID: 111\n"
 			"Currency: MDL\n"
 			"Credit/Debit: D",
@@ -87,6 +87,6 @@ class TestMaibStatementParse(FrappeTestCase):
 		self.assertEqual(parse_statement_xml(xml), [])
 
 	def test_iban_to_maib_account_id(self):
-		self.assertEqual(iban_to_maib_account_id("MD24AG000000022516020091"), "22516020091")
-		self.assertEqual(iban_to_maib_account_id("MD24 AG00 0000 0022 5160 20091"), "22516020091")
+		self.assertEqual(iban_to_maib_account_id("MD24AG000000022510000001"), "22510000001")
+		self.assertEqual(iban_to_maib_account_id("MD24 AG00 0000 0022 5100 00001"), "22510000001")
 		self.assertEqual(iban_to_maib_account_id(""), "")

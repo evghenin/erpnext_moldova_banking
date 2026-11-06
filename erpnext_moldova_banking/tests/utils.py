@@ -115,7 +115,7 @@ def ensure_maib_bank(bank_name: str | None = None) -> str:
 	return bank_name
 
 
-def create_maib_company_bank_account(iban_account_id: str = "22516020091") -> tuple[str, str]:
+def create_maib_company_bank_account(iban_account_id: str = "22510000001") -> tuple[str, str]:
 	"""Return (bank_account_name, gl_account_name) for a MAIB company account."""
 	company_name = ensure_test_company()
 	uniq = frappe.generate_hash(length=8)
@@ -209,7 +209,7 @@ def enable_maib_settings(
 	return settings
 
 
-def ensure_supplier_tax_id(supplier: str = "_Test Supplier", tax_id: str = "1002600015382") -> str:
+def ensure_supplier_tax_id(supplier: str = "_Test Supplier", tax_id: str = "1000000000005") -> str:
 	if not frappe.db.exists("Supplier", supplier):
 		frappe.get_doc(
 			{

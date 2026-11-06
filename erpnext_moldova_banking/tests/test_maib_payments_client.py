@@ -81,20 +81,20 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		self.assertEqual(endpoints["scope"], defaults["scope"])
 
 	def test_company_values_are_normalized_from_frappe_payloads(self):
-		self.assertEqual(_normalize_company_name('["Best Test SRL"]'), "Best Test SRL")
-		self.assertEqual(_normalize_company_name([" Best Test SRL "]), "Best Test SRL")
+		self.assertEqual(_normalize_company_name('["Alpha Company SRL"]'), "Alpha Company SRL")
+		self.assertEqual(_normalize_company_name([" Alpha Company SRL "]), "Alpha Company SRL")
 		self.assertEqual(
-			_normalize_company_selection('["Best Test SRL", "Second SRL"]'),
-			["Best Test SRL", "Second SRL"],
+			_normalize_company_selection('["Alpha Company SRL", "Second SRL"]'),
+			["Alpha Company SRL", "Second SRL"],
 		)
 		self.assertEqual(
-			_normalize_company_selection("Best Test SRL, Second SRL"),
-			["Best Test SRL", "Second SRL"],
+			_normalize_company_selection("Alpha Company SRL, Second SRL"),
+			["Alpha Company SRL", "Second SRL"],
 		)
 
 	@patch("erpnext_moldova_banking.providers.maib.client.frappe.get_single")
 	def test_company_credentials_match_json_array_selection(self, mock_get_single):
-		first = frappe._dict(company="Best Test SRL", client_id="first")
+		first = frappe._dict(company="Alpha Company SRL", client_id="first")
 		second = frappe._dict(company="Second SRL", client_id="second")
 		mock_get_single.return_value = frappe._dict(
 			maib_company_settings=[first, second]
@@ -122,10 +122,10 @@ class TestMaibPaymentsClient(FrappeTestCase):
 			json=lambda: {"access_token": "token", "token_type": "Bearer"},
 		)
 
-		payload = get_access_token(company='["Best Test SRL"]')
+		payload = get_access_token(company='["Alpha Company SRL"]')
 
-		mock_company_settings.assert_called_once_with("Best Test SRL")
-		mock_secret.assert_called_once_with("Best Test SRL")
+		mock_company_settings.assert_called_once_with("Alpha Company SRL")
+		mock_secret.assert_called_once_with("Alpha Company SRL")
 		self.assertEqual(payload["access_token"], "token")
 		self.assertEqual(payload["_environment"], "Test")
 		self.assertEqual(
@@ -194,10 +194,10 @@ class TestMaibPaymentsClient(FrappeTestCase):
 				"amount": "120.00",
 				"details": "Pay & settle <invoice>",
 				"payment_type": "NORMAL",
-				"source_account_number": "22516020091",
+				"source_account_number": "22510000001",
 				"source_product_type": "Operational",
 				"beneficiary_name": "Supplier SRL",
-				"beneficiary_fiscal_code": "1016606002299",
+				"beneficiary_fiscal_code": "1000000000006",
 				"destination_account_number": "MD24TEST0000000000000001",
 				"destination_bank_swift_bic": "AGMDMD2X",
 				"residency_indicator": "R",
@@ -218,17 +218,17 @@ class TestMaibPaymentsClient(FrappeTestCase):
 				"payment_date": "20260830",
 				"amount": "10.00",
 				"details": "Invoice",
-				"source_account_number": "22516020091",
+				"source_account_number": "22510000001",
 				"beneficiary_name": "Supplier SRL",
-				"beneficiary_fiscal_code": "1002600015382",
+				"beneficiary_fiscal_code": "1000000000005",
 				"destination_account_number": "MD24TEST0000000000000001",
 				"destination_bank_swift_bic": "AGMDMD2X",
 				"residency_indicator": "R",
 			},
-			company="Best Test SRL",
+			company="Alpha Company SRL",
 		)
 		self.assertEqual(result["instruction_id"], "202608300004776")
-		self.assertEqual(mock_post.call_args.kwargs["company"], "Best Test SRL")
+		self.assertEqual(mock_post.call_args.kwargs["company"], "Alpha Company SRL")
 
 	@patch("erpnext_moldova_banking.utils.bank_payment_instruction._set_instruction_fields")
 	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.query_instruction_states")
@@ -239,7 +239,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 	):
 		doc = MagicMock()
 		doc.name = "BPI-0001"
-		doc.company = "Best Test SRL"
+		doc.company = "Alpha Company SRL"
 		doc.get.side_effect = lambda key: {
 			"bank_instruction_id": "202608300004776",
 			"bank_status": "Executed",
@@ -256,7 +256,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		):
 			result = refresh_instruction_status(doc.name)
 
-		mock_query.assert_called_once_with(["202608300004776"], company="Best Test SRL")
+		mock_query.assert_called_once_with(["202608300004776"], company="Alpha Company SRL")
 		self.assertEqual(mock_set_fields.call_args.args[1]["bank_status"], "Executed")
 		self.assertEqual(result["raw_status"], "Succeeded")
 		self.assertEqual(result["payment_match"], {"ok": True})
@@ -270,7 +270,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 	):
 		doc = MagicMock()
 		doc.name = "BPI-0001"
-		doc.company = "Best Test SRL"
+		doc.company = "Alpha Company SRL"
 		doc.get.side_effect = lambda key: {
 			"bank_instruction_id": "202608300004776",
 			"bank_status": "Waiting For Authorization",
@@ -281,7 +281,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 
 		result = refresh_instruction_status(doc.name)
 
-		mock_query.assert_called_once_with(["202608300004776"], company="Best Test SRL")
+		mock_query.assert_called_once_with(["202608300004776"], company="Alpha Company SRL")
 		self.assertNotIn("bank_status", mock_set_fields.call_args.args[1])
 		self.assertTrue(result["soft_error"])
 		del frappe.local.maib_last_http_error
@@ -322,7 +322,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
     <Date>2026-05-19</Date>
     <CreditTransfer>Mdl</CreditTransfer>
     <PayerName>Sender SRL</PayerName>
-    <PayerFiscalCode>1002600000001</PayerFiscalCode>
+    <PayerFiscalCode>1000000000011</PayerFiscalCode>
     <PayerAmount>1000.50</PayerAmount>
     <Currency>MDL</Currency>
     <PayerAccount>2251000000000001</PayerAccount>
@@ -330,7 +330,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
     <PayerBank />
     <PayerBankCode>EXMMMD21</PayerBankCode>
     <BeneficiaryName>Recipient SRL</BeneficiaryName>
-    <BeneficiaryFiscalCode>1002600000002</BeneficiaryFiscalCode>
+    <BeneficiaryFiscalCode>1000000000012</BeneficiaryFiscalCode>
     <BeneficiaryAccount>2251000000000002</BeneficiaryAccount>
     <BeneficiarySubAccount />
     <BeneficiaryBank />
@@ -365,6 +365,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 	def test_enrich_new_rows_appends_details(self, _mock_exists, _mock_ctx, mock_query):
 		mock_query.return_value = {
 			"PayerName": "Sender SRL",
+			"PayerFiscalCode": "1000000000011",
 			"BeneficiaryName": "Receiver SRL",
 			"PaymentDestination": "Invoice 42",
 			"PayerAmount": "100.00",
@@ -378,6 +379,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 				"reference_number": "202607280000001",
 				"transaction_id": "202607280000001",
 				"payment_destination": "Invoice 42",
+				"cp_idno": "1000000000011",
 				"description": "Invoice 42",
 			}
 		]
@@ -409,7 +411,7 @@ class TestMaibPaymentsClient(FrappeTestCase):
 			"Document Number: 42\n"
 			"Transaction ID: 213681697437387.000002\n"
 			"Counterparty: Supplier SRL\n"
-			"Counterparty IDNO: 1002600000002"
+			"Counterparty IDNO: 1000000000012"
 		)
 		rows = [
 			{
@@ -430,6 +432,56 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		self.assertFalse(looks_like_transfer_identity("213681697437387.000002"))
 		self.assertTrue(looks_like_transfer_identity("202607280000001"))
 		self.assertTrue(looks_like_transfer_identity("d6b8e7ad-67c7-4940-8787-ac402254d019"))
+
+	@patch("erpnext_moldova_banking.utils.maib_sync._company_party_context")
+	@patch("erpnext_moldova_banking.utils.maib_sync.query_transfer_details")
+	@patch("erpnext_moldova_banking.utils.maib_sync._is_existing_bank_transaction", return_value=False)
+	@patch("erpnext_moldova_banking.utils.maib_sync.frappe.db.get_value", return_value="Alpha Company SRL")
+	def test_enrich_keeps_statement_text_when_details_are_another_payment(
+		self, _mock_company, _mock_exists, mock_query, mock_ctx
+	):
+		"""Document number 1 on an incoming line must not inherit an outgoing payment."""
+		mock_ctx.return_value = {
+			"company_iban": "",
+			"company_name": "Alpha Company SRL",
+			"company_idno": "1000000000001",
+		}
+		mock_query.return_value = {
+			"DocumentNumber": "1",
+			"Date": "2026-09-18",
+			"PayerAmount": "4560.00",
+			"PayerName": "Alpha Company SRL",
+			"PayerFiscalCode": "1000000000001",
+			"BeneficiaryName": "Receiver Company SA",
+			"BeneficiaryFiscalCode": "1000000000002",
+			"PaymentDestination": "Payment for goods",
+			"TransferType": "Succeeded",
+		}
+		statement = (
+			"Payment from Payer Company\n\n"
+			"Amount: 2800.00\n"
+			"Document Number: 1\n"
+			"Date Written: 21.09.2026\n"
+			"Payer: Payer Company SRL"
+		)
+		rows = [
+			{
+				"date": "2026-09-21",
+				"deposit": 2800,
+				"withdrawal": 0,
+				"amount": 2800,
+				"credit_or_debit": "C",
+				"document_number": "1",
+				"reference_number": "1",
+				"transaction_id": "214498114755446.030002",
+				"cp_name": "Payer Company SRL",
+				"cp_idno": "1000000000003",
+				"description": statement,
+			}
+		]
+		out = enrich_new_rows_with_transfer_details("BA-1", rows)
+		self.assertEqual(out[0]["description"], statement)
+		self.assertNotIn("transfer_details", out[0])
 
 	@patch("erpnext_moldova_banking.utils.maib_sync.query_transfer_details")
 	@patch("erpnext_moldova_banking.utils.maib_sync._is_existing_bank_transaction", return_value=True)
