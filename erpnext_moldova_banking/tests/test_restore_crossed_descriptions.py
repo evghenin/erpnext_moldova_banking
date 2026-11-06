@@ -4,6 +4,7 @@
 from frappe.tests.utils import FrappeTestCase
 
 from erpnext_moldova_banking.patches.v2_0.restore_crossed_bank_transaction_descriptions import (
+	date_written_from_description,
 	statement_row_matches,
 	transaction_id_from_description,
 )
@@ -14,6 +15,7 @@ class TestRestoreCrossedDescriptions(FrappeTestCase):
 	def test_transaction_id_is_read_from_description(self):
 		description = "Wrong payment\n\nTransaction ID: 214498114755446.030002\nPayer IDNO: 1000000000001"
 		self.assertEqual(transaction_id_from_description(description), "214498114755446.030002")
+		self.assertEqual(str(date_written_from_description("Date Written: 18.09.2026")), "2026-09-18")
 
 	def test_transaction_id_and_amount_match_without_the_same_party_text(self):
 		bt = {
