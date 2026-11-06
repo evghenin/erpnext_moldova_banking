@@ -22,7 +22,7 @@ from erpnext_moldova_banking.providers.maib.statement import parse_statement_xml
 def execute():
 	if not frappe.db.table_exists("Bank Transaction") or not frappe.db.table_exists("Company"):
 		return
-	if not frappe.db.has_column("Company", "tax_id"):
+	if not frappe.db.has_column("Company", "tax_id") or not frappe.db.has_column("Customer", "tax_id"):
 		return
 
 	rows = frappe.db.sql(
@@ -36,19 +36,23 @@ def execute():
 			bt.withdrawal,
 			bt.reference_number,
 			bt.bank_party_name,
+			bt.party_type,
 			bt.description,
-			c.tax_id AS company_idno
+			c.tax_id AS company_idno,
+			cust.tax_id AS party_tax_id
 		FROM `tabBank Transaction` bt
 		INNER JOIN `tabCompany` c ON c.name = bt.company
+		INNER JOIN `tabCustomer` cust ON cust.name = bt.party
 		WHERE bt.docstatus < 2
-			AND IFNULL(bt.deposit, 0) > 0
-			AND IFNULL(c.tax_id, '') != ''
-			AND bt.description LIKE CONCAT(%(payer_prefix)s, c.tax_id, %(like_suffix)s)
+			AND bt.party_type = 'Customer'
+			AND IFNULL(bt.party, '') != ''
+			AND bt.description LIKE %(payer_marker)s
 		ORDER BY bt.bank_account, bt.date, bt.name
 		""",
-		{"payer_prefix": "%Payer IDNO: ", "like_suffix": "%"},
+		{"payer_marker": "%Payer IDNO:%"},
 		as_dict=True,
 	)
+	rows = [bt for bt in rows if is_crossed_customer_receipt(bt)]
 	if not rows:
 		return
 
@@ -99,6 +103,30 @@ def execute():
 
 def _digits(value: str) -> str:
 	return "".join(ch for ch in (value or "") if ch.isdigit())
+
+
+def is_crossed_customer_receipt(bt) -> bool:
+	"""True when the description names our company as payer and someone else as receiver.
+
+	A transfer where the company is both payer and receiver is left unchanged.
+	The linked Customer must be a different firm from the payer written in the text.
+	"""
+	if (bt.get("party_type") or "") != "Customer":
+		return False
+
+	description = bt.get("description") or ""
+	payer_idno = _digits(_line_value(description, "Payer IDNO"))
+	receiver_idno = _digits(_line_value(description, "Receiver IDNO"))
+	company_idno = _digits(bt.get("company_idno") or "")
+	party_tax_id = _digits(bt.get("party_tax_id") or "")
+
+	if not company_idno or payer_idno != company_idno:
+		return False
+	if not receiver_idno or receiver_idno == company_idno:
+		return False
+	if not party_tax_id or party_tax_id == payer_idno:
+		return False
+	return True
 
 
 def _norm_party(value: str) -> str:
