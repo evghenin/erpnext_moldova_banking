@@ -12,7 +12,7 @@ and write the statement description back.
 from __future__ import annotations
 
 import frappe
-from frappe.utils import flt, getdate
+from frappe.utils import add_days, flt, getdate
 
 from erpnext_moldova_banking.providers.maib.client import fetch_statement_xml, resolve_api_account_id
 from erpnext_moldova_banking.providers.maib.description import build_maib_transaction_description
@@ -36,7 +36,8 @@ def execute():
 			bt.withdrawal,
 			bt.reference_number,
 			bt.bank_party_name,
-			bt.description
+			bt.description,
+			c.tax_id AS company_idno
 		FROM `tabBank Transaction` bt
 		INNER JOIN `tabCompany` c ON c.name = bt.company
 		WHERE bt.docstatus < 2
@@ -58,19 +59,25 @@ def execute():
 	for bt in rows:
 		try:
 			statement_rows = _statement_rows(bt, statement_cache)
-		except Exception:
+		except Exception as exc:
 			frappe.log_error(frappe.get_traceback(), f"MAIB statement reload failed for {bt.name}")
-			failures.append(bt.name)
+			failures.append(f"{bt.name} ({exc})")
 			continue
 
 		matches = [row for row in statement_rows if statement_row_matches(bt, row)]
 		if len(matches) != 1:
-			failures.append(bt.name)
+			reason = "no statement line" if not matches else f"{len(matches)} statement lines"
+			failures.append(f"{bt.name} ({reason}, statement rows {len(statement_rows)})")
 			continue
 
 		description = build_maib_transaction_description(matches[0])
-		if not description or description == (bt.description or ""):
-			failures.append(bt.name)
+		company_idno = _digits(bt.company_idno)
+		if (
+			not description
+			or description == (bt.description or "")
+			or (company_idno and f"Payer IDNO: {company_idno}" in description)
+		):
+			failures.append(f"{bt.name} (statement text still names our company as payer)")
 			continue
 
 		frappe.db.set_value(
@@ -86,9 +93,20 @@ def execute():
 		frappe.db.commit()
 
 	if failures:
-		frappe.throw(
-			f"Could not restore {len(failures)} bank transaction description(s): {', '.join(failures[:20])}"
+		message = (
+			f"Restored {restored} bank transaction description(s). "
+			f"Could not restore {len(failures)}: {'; '.join(failures)}"
 		)
+		frappe.log_error(message, "Restore crossed bank transaction descriptions")
+		print(message)
+
+
+def _digits(value: str) -> str:
+	return "".join(ch for ch in (value or "") if ch.isdigit())
+
+
+def _norm_party(value: str) -> str:
+	return "".join((value or "").split()).casefold()
 
 
 def transaction_id_from_description(description: str) -> str:
@@ -98,40 +116,64 @@ def transaction_id_from_description(description: str) -> str:
 	return ""
 
 
+def _same_transaction_id(stored: str, statement: str) -> bool:
+	stored = (stored or "").strip()
+	statement = (statement or "").strip()
+	if not stored or not statement:
+		return False
+	if stored == statement:
+		return True
+	stored_head, _, stored_tail = stored.partition(".")
+	statement_head, _, statement_tail = statement.partition(".")
+	if stored_tail and statement_tail:
+		return False
+	return bool(stored_head) and stored_head == statement_head and stored_head.isdigit()
+
+
 def statement_row_matches(bt, row: dict) -> bool:
-	"""True when a statement line is the same receipt as this Bank Transaction."""
+	"""True when a statement line is the same receipt as this Bank Transaction.
+
+	Transaction ID is enough. Document number 1 is shared by many payments, and
+	the counterparty text may differ by spaces from bank_party_name.
+	"""
 	if abs(flt(row.get("deposit")) - flt(bt.get("deposit"))) > 0.009:
 		return False
-	if abs(flt(row.get("withdrawal")) - flt(bt.get("withdrawal"))) > 0.009:
-		return False
-
-	reference = (bt.get("reference_number") or "").strip()
-	document_number = (row.get("document_number") or row.get("reference_number") or "").strip()
-	if reference and document_number and reference != document_number:
-		return False
-
-	party = (bt.get("bank_party_name") or "").strip()
-	counterparty = (row.get("cp_name") or "").strip()
-	if party and counterparty and party != counterparty:
+	if flt(row.get("withdrawal")) > 0.009:
 		return False
 
 	stored_txn = transaction_id_from_description(bt.get("description") or "")
 	statement_txn = (row.get("transaction_id") or "").strip()
-	if stored_txn and statement_txn and stored_txn != statement_txn:
+	if _same_transaction_id(stored_txn, statement_txn):
+		return True
+	if stored_txn and statement_txn:
 		return False
-	return True
+
+	reference = (bt.get("reference_number") or "").strip()
+	document_number = (row.get("document_number") or row.get("reference_number") or "").strip()
+	if not reference or reference != document_number:
+		return False
+
+	party = _norm_party(bt.get("bank_party_name") or "")
+	counterparty = _norm_party(row.get("cp_name") or "")
+	return bool(party and counterparty and party == counterparty)
 
 
-def _statement_rows(bt, cache: dict[tuple[str, str], list[dict]]) -> list[dict]:
-	posting_date = str(getdate(bt.date))
-	key = (bt.bank_account, posting_date)
+def _statement_rows(bt, cache: dict[tuple[str, str, str], list[dict]]) -> list[dict]:
+	posting_date = getdate(bt.date)
+	# The statement date and the Bank Transaction date can differ by a day.
+	from_date = add_days(posting_date, -3)
+	to_date = add_days(posting_date, 3)
+	key = (bt.bank_account, str(from_date), str(to_date))
 	if key in cache:
 		return cache[key]
 
 	account_id = resolve_api_account_id(bt.bank_account)
-	yyyymmdd = getdate(bt.date).strftime("%Y%m%d")
-	# Release locks before the bank call. A failed day is retried on the next migrate.
 	frappe.db.commit()
-	xml_text = fetch_statement_xml(account_id, yyyymmdd, yyyymmdd, company=bt.company)
+	xml_text = fetch_statement_xml(
+		account_id,
+		from_date.strftime("%Y%m%d"),
+		to_date.strftime("%Y%m%d"),
+		company=bt.company,
+	)
 	cache[key] = parse_statement_xml(xml_text)
 	return cache[key]
