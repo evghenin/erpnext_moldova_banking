@@ -5,6 +5,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from erpnext_moldova_banking.patches.v2_0.restore_crossed_bank_transaction_descriptions import (
 	date_written_from_description,
+	is_crossed_customer_receipt,
 	statement_row_matches,
 	transaction_id_from_description,
 )
@@ -12,6 +13,57 @@ from erpnext_moldova_banking.providers.maib.description import build_maib_transa
 
 
 class TestRestoreCrossedDescriptions(FrappeTestCase):
+	def test_only_a_customer_receipt_paid_by_our_company_to_someone_else_is_crossed(self):
+		company = "1000000000001"
+		customer = "1000000000003"
+		supplier = "1000000000002"
+		text = (
+			f"Payment for goods\n"
+			f"Payer IDNO: {company}\n"
+			f"Receiver IDNO: {supplier}\n"
+		)
+		self.assertTrue(
+			is_crossed_customer_receipt(
+				{
+					"party_type": "Customer",
+					"description": text,
+					"company_idno": company,
+					"party_tax_id": customer,
+				}
+			)
+		)
+		own_transfer = text.replace(f"Receiver IDNO: {supplier}", f"Receiver IDNO: {company}")
+		self.assertFalse(
+			is_crossed_customer_receipt(
+				{
+					"party_type": "Customer",
+					"description": own_transfer,
+					"company_idno": company,
+					"party_tax_id": customer,
+				}
+			)
+		)
+		self.assertFalse(
+			is_crossed_customer_receipt(
+				{
+					"party_type": "Supplier",
+					"description": text,
+					"company_idno": company,
+					"party_tax_id": customer,
+				}
+			)
+		)
+		self.assertFalse(
+			is_crossed_customer_receipt(
+				{
+					"party_type": "Customer",
+					"description": text,
+					"company_idno": company,
+					"party_tax_id": company,
+				}
+			)
+		)
+
 	def test_transaction_id_is_read_from_description(self):
 		description = "Wrong payment\n\nTransaction ID: 214498114755446.030002\nPayer IDNO: 1000000000001"
 		self.assertEqual(transaction_id_from_description(description), "214498114755446.030002")
