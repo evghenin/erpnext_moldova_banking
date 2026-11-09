@@ -91,8 +91,12 @@ def _ingest_one(bank_account, company, currency, row, submit, stats, source="api
 	doc.deposit = flt(row.get("deposit") or 0)
 	doc.withdrawal = flt(row.get("withdrawal") or 0)
 	doc.description = row.get("description") or ""
+	meta = frappe.get_meta("Bank Transaction")
 	if source == "api":
 		doc.reference_number = row.get("document_number") or row.get("reference_number") or ""
+		transaction_id = (row.get("transaction_id") or "").strip()
+		if transaction_id and meta.has_field("transaction_id"):
+			doc.transaction_id = transaction_id
 	else:
 		doc.reference_number = row.get("reference_number") or ""
 	if currency or row.get("currency"):
@@ -102,7 +106,6 @@ def _ingest_one(bank_account, company, currency, row, submit, stats, source="api
 		doc.party = party
 
 	# Optional statement party fields if present on BT
-	meta = frappe.get_meta("Bank Transaction")
 	if row.get("cp_name") and meta.has_field("bank_party_name"):
 		doc.bank_party_name = row["cp_name"]
 	if row.get("cp_idno") and meta.has_field("party_name"):

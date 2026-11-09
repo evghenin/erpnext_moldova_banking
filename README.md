@@ -2,7 +2,7 @@
 
 Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements and payments), DBO file import, bank transaction automation, BNM FX rates, and Telegram notifications.
 
-**Current version: 2.3.0** (ERPNext v15 / Frappe v15).
+**Current version: 3.0.0** (ERPNext v15 / Frappe v15). Branch `v3`.
 
 | Line | What it is |
 |---|---|
@@ -10,7 +10,8 @@ Frappe/ERPNext app for Moldova banking workflows: MAIB API (statements and payme
 | Tag [`v2.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.0.0) | MAIB API, Bank Payment Instruction for suppliers, Active Hours, Telegram |
 | Tag [`v2.1.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.1.0) | Shareholder and Employee payments, company bank account from the party default |
 | Tag [`v2.2.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.2.0) | Bank Payment Instruction opened from selected Purchase Invoices, Victoriabank fallback for BNM rates |
-| Tag [`v2.3.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.3.0) and branches `master` and `v2` | Unsaved Bank Payment Instruction from a Purchase Invoice, correctable payment date, invoice cancel while linked |
+| Tag [`v2.3.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v2.3.0) and branch `v2` | Unsaved Bank Payment Instruction from a Purchase Invoice, correctable payment date, invoice cancel while linked |
+| Tag [`v3.0.0`](https://github.com/evghenin/erpnext_moldova_banking/releases/tag/v3.0.0) and branch `v3` | MAIB statement uses the operational date, and Bank Transaction stores the bank operation id |
 
 ### Features
 
@@ -34,7 +35,10 @@ Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, Supplier
 #### MAIB statement sync
 - Manual **Fetch Statement** and scheduled sync per bank account
 - Scheduled API sync is skipped outside **Active Hours** when that feature is enabled and periods are configured
-- Parses account-statement XML into `Bank Transaction` (dedupe via `unique_key`)
+- Parses account-statement XML into `Bank Transaction` and stores the bank operation id on `transaction_id`
+- A repeat is the same bank account and `transaction_id`, whatever the posting date
+- Without a transaction id, a repeat is the same account, document number, payer, amount, currency, and a date within 7 days
+- API statement dates are the operational dates used by the maib business statement file
 - Optionally loads Transfer Details when MAIB accepts the identity; otherwise keeps the statement description
 - Stepped progress UI for manual fetch (list → per-transaction details/create)
 
@@ -49,7 +53,7 @@ Residency (`Resident` / `Non-Resident`) is stored on Company, Customer, Supplier
 
 #### DBO / file import
 - **Moldova Bank Statement Import** for MAIB DBO statement files (current/card accounts)
-- Same unique-key dedupe and party resolution by IDNO
+- Same duplicate check and party resolution by IDNO. A DBO file has no bank operation id, so a file line matches an API line by account, document number, payer, amount, currency, and date
 
 #### Telegram notifications
 One message per new Bank Transaction when enabled.
@@ -66,18 +70,25 @@ Header format: `Incoming Bank Transaction ACC-BTN-…` / `Outgoing Bank Transact
 #### BNM exchange rates
 Protected endpoint + helpers to regenerate the API key and wire ERPNext **Currency Exchange Settings**.
 
-### Installation (v2.1.0)
+### Installation (v3.0.0)
 
 ```bash
 cd $PATH_TO_YOUR_BENCH
-bench get-app https://github.com/evghenin/erpnext_moldova_banking.git --branch v2
+bench get-app https://github.com/evghenin/erpnext_moldova_banking.git --branch v3
 bench --site <site> install-app erpnext_moldova_banking
 bench --site <site> migrate
 ```
 
-`--branch master` currently tracks the same v2.1.0 line.
+Branch `v2` stays on the 2.3 line.
 
 Open **Moldova Banking Settings** and configure the tabs you need (MAIB company credentials, Test/Production, Telegram bot token & chat id, etc.).
+
+### Upgrade from v2.3.0
+
+1. Update the app to branch `v3` (tag `v3.0.0`).
+2. Run `bench --site <site> migrate`.
+
+Migrate fills `transaction_id` on MAIB bank transactions already in the system by reading the statement at the actual execution date. After that, statement sync requests the operational date, the same date as the maib business statement file. Dates already stored on Bank Transaction are left as they are. If the bank cannot be reached during migrate, the next successful statement sync writes the missing ids and does not create a second copy.
 
 ### Upgrade from v2.0.0
 
