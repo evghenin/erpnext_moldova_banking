@@ -19,7 +19,7 @@ from erpnext_moldova_banking.tests.utils import create_maib_company_bank_account
 
 test_dependencies = ["Company", "Cost Center"]
 
-IBAN = "MD46AG000000022516020091"
+IBAN = "MD46AG000000022510000001"
 
 
 class TestDboImport(FrappeTestCase):
@@ -31,7 +31,7 @@ class TestDboImport(FrappeTestCase):
 
 	def setUp(self):
 		self.bank_account, self.gl_account = create_maib_company_bank_account(
-			iban_account_id="22516020091"
+			iban_account_id="22510000001"
 		)
 		# Force exact IBAN from the sample DBO (create helper builds MD24AG… by default)
 		frappe.db.set_value(

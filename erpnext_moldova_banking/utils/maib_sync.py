@@ -8,7 +8,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, get_datetime, get_time, getdate, now_datetime, today
+from frappe.utils import add_days, cint, flt, get_datetime, get_time, getdate, now_datetime, today
 
 from erpnext_moldova_banking.providers.maib.client import (
 	fetch_statement_xml,
@@ -105,27 +105,103 @@ def _serialize_statement_row(row: dict[str, Any]) -> dict[str, Any]:
 	return out
 
 
-def _resolve_transfer_identity(row: dict[str, Any]) -> str:
+def _detail_value(details: dict[str, str], *keys: str) -> str:
+	lower_map = {str(k).lower(): v for k, v in (details or {}).items() if v}
+	for key in keys:
+		value = lower_map.get(key.lower())
+		if value:
+			return str(value).strip()
+	return ""
+
+
+def _digits(value: str) -> str:
+	return "".join(ch for ch in (value or "") if ch.isdigit())
+
+
+def _statement_amount(row: dict[str, Any]) -> float:
+	return flt(row.get("amount") or 0) or flt(row.get("deposit") or 0) or flt(row.get("withdrawal") or 0)
+
+
+def _expected_payer_idno(row: dict[str, Any], company_idno: str = "") -> str:
+	"""Payer on a receipt is the counterparty. Payer on a payment is our company."""
+	is_deposit = flt(row.get("deposit") or 0) > 0 or str(row.get("credit_or_debit") or "").upper().startswith("C")
+	if is_deposit:
+		return _digits(row.get("cp_idno") or "")
+	return _digits(company_idno)
+
+
+def _transfer_details_belong_to_row(
+	row: dict[str, Any],
+	details: dict[str, str],
+	company_idno: str = "",
+) -> bool:
+	"""True when Transfer Details describe this statement line.
+
+	Payer IDNO is required. The same document number at another firm must not
+	replace this line's description.
+	"""
+	if not details:
+		return False
+
+	payer_idno = _digits(_detail_value(details, "PayerFiscalCode"))
+	expected_payer = _expected_payer_idno(row, company_idno)
+	if not payer_idno or not expected_payer or payer_idno != expected_payer:
+		return False
+
+	payer_amount = _detail_value(details, "PayerAmount")
+	amount = _statement_amount(row)
+	if payer_amount and amount and abs(flt(payer_amount) - amount) > 0.009:
+		return False
+
+	detail_date = _detail_value(details, "Date")
+	if detail_date and row.get("date"):
+		try:
+			if abs((getdate(detail_date) - getdate(row.get("date"))).days) > 1:
+				return False
+		except Exception:
+			return False
+	return True
+
+
+def _resolve_transfer_identity(row: dict[str, Any], *, company: str | None = None) -> str:
 	"""Pick an identity accepted by Transfer Details Query, if any."""
 	for key in ("transaction_id", "document_number", "reference_number"):
 		candidate = (row.get(key) or "").strip()
 		if looks_like_transfer_identity(candidate):
 			return candidate
 
-	# Outward payments: DocumentNumber is Bank Payment Instruction.document_number.
-	document_number = (row.get("document_number") or "").strip()
-	if document_number:
-		instruction_id = (
-			frappe.db.get_value(
-				"Bank Payment Instruction",
-				{"document_number": document_number, "docstatus": ["<", 2]},
-				"bank_instruction_id",
-			)
-			or ""
-		).strip()
-		if looks_like_transfer_identity(instruction_id):
-			return instruction_id
+	# Incoming lines carry the counterparty document number. Do not map that
+	# number onto one of our outgoing Bank Payment Instructions.
+	if flt(row.get("deposit") or 0) > 0:
+		return ""
 
+	document_number = (row.get("document_number") or "").strip()
+	if not document_number or not company:
+		return ""
+
+	filters: dict[str, Any] = {
+		"document_number": document_number,
+		"company": company,
+		"docstatus": ["<", 2],
+	}
+	instructions = frappe.get_all(
+		"Bank Payment Instruction",
+		filters=filters,
+		fields=["bank_instruction_id", "amount"],
+		limit=20,
+	)
+	amount = flt(row.get("withdrawal") or row.get("amount") or 0)
+	matches: list[str] = []
+	for item in instructions:
+		instruction_id = (item.get("bank_instruction_id") or "").strip()
+		if not looks_like_transfer_identity(instruction_id):
+			continue
+		if amount and abs(flt(item.get("amount")) - amount) > 0.009:
+			continue
+		if instruction_id not in matches:
+			matches.append(instruction_id)
+	if len(matches) == 1:
+		return matches[0]
 	return ""
 
 
@@ -167,14 +243,14 @@ def enrich_single_row(bank_account: str, row: dict[str, Any], settings=None) -> 
 	if _is_existing_bank_transaction(bank_account, row):
 		return row
 
-	identity = _resolve_transfer_identity(row)
+	company = frappe.db.get_value("Bank Account", bank_account, "company") or ""
+	identity = _resolve_transfer_identity(row, company=company)
 	if not identity:
 		identity = (row.get("transaction_id") or row.get("reference_number") or "").strip()
 
 	if not identity:
 		return row
 
-	company = frappe.db.get_value("Bank Account", bank_account, "company") or ""
 	try:
 		details = query_transfer_details(identity, settings=settings, company=company, soft=True) or {}
 		frappe.clear_messages()
@@ -191,6 +267,8 @@ def enrich_single_row(bank_account: str, row: dict[str, Any], settings=None) -> 
 		return row
 
 	ctx = _company_party_context(bank_account)
+	if not _transfer_details_belong_to_row(row, details, company_idno=ctx["company_idno"]):
+		return row
 	row["transfer_details"] = details
 	row["description"] = build_maib_transaction_description(
 		row,

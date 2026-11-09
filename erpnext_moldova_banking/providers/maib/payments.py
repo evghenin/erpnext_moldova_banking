@@ -75,6 +75,22 @@ def map_maib_status(raw: str | None) -> str:
 	return STATUS_MAP.get(value, STATUS_MAP.get(value.replace(" ", ""), "In Process"))
 
 
+_STALE_PAYMENT_DATE_RE = re.compile(
+	r"(?:creation|execution) date cannot be earlier than current date",
+	re.IGNORECASE,
+)
+
+
+def is_stale_payment_date_error(message: str | None) -> bool:
+	"""True when MAIB rejected the transfer because PAYMENT_DATE is before today.
+
+	The bank reports this as PredicateValidator (creation date) and
+	GreaterThanOrEqualValidator (execution date). The instruction was never
+	accepted, so the local status stays Not Sent.
+	"""
+	return bool(_STALE_PAYMENT_DATE_RE.search(message or ""))
+
+
 def _xml_headers(token: str) -> dict[str, str]:
 	return {
 		"Content-Type": "application/xml",

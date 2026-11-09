@@ -164,6 +164,9 @@ doc_events = {
 			"erpnext_moldova_banking.utils.maib_payment_match.try_match_bank_transaction",
 		],
 	},
+	"Purchase Invoice": {
+		"on_cancel": "erpnext_moldova_banking.overrides.purchase_invoice.ignore_bank_payment_instruction_on_cancel",
+	},
 }
 
 # Scheduled Tasks

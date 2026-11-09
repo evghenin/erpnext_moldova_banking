@@ -89,7 +89,7 @@ class TestTelegramNotify(FrappeTestCase):
 	def test_format_respects_message_fields(self):
 		doc = frappe._dict(
 			name="ACC-BTN-1",
-			company="Best Test SRL",
+			company="Alpha Company SRL",
 			date="2026-07-28",
 			deposit=100,
 			withdrawal=0,
@@ -122,7 +122,7 @@ class TestTelegramNotify(FrappeTestCase):
 		mock_settings.return_value = _settings()
 		doc = frappe._dict(
 			name="ACC-BTN-2",
-			company="Best Test SRL",
+			company="Alpha Company SRL",
 			date="2026-07-28",
 			deposit=0,
 			withdrawal=50,
@@ -145,7 +145,7 @@ class TestTelegramNotify(FrappeTestCase):
 		mock_send.side_effect = frappe.ValidationError("boom")
 		doc = frappe._dict(
 			name="ACC-BTN-3",
-			company="Best Test SRL",
+			company="Alpha Company SRL",
 			date="2026-07-28",
 			deposit=10,
 			withdrawal=0,
@@ -172,7 +172,7 @@ class TestTelegramNotify(FrappeTestCase):
 		def _doc(i):
 			return frappe._dict(
 				name=f"ACC-BTN-{i}",
-				company="Best Test SRL",
+				company="Alpha Company SRL",
 				date="2026-07-28",
 				deposit=i,
 				withdrawal=0,
