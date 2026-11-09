@@ -89,20 +89,30 @@ frappe.ui.form.on("Bank Payment Instruction", {
 			}
 
 			const status = frm.doc.bank_status || "Not Sent";
+			const staleDateError =
+				status === "API Error" &&
+				/(?:creation|execution) date cannot be earlier than current date/i.test(frm.doc.api_error || "");
 			const can_send =
 				!frm.doc.bank_instruction_id || ["Not Sent", "API Error", "Rejected"].includes(status);
 
 			if (can_send) {
-				frm.add_custom_button(__("Send to Bank"), () => frm.trigger("send_to_bank"), __("MAIB"));
+				frm.add_custom_button(__("Send to Bank"), () => frm.trigger("send_to_bank"), __("Actions"));
+			}
+			if (status === "Not Sent" || staleDateError) {
+				frm.add_custom_button(
+					__("Update Payment Date"),
+					() => frm.trigger("update_payment_date"),
+					__("Actions")
+				);
 			}
 			if (frm.doc.bank_instruction_id) {
-				frm.add_custom_button(__("Refresh Status"), () => frm.trigger("refresh_status"), __("MAIB"));
+				frm.add_custom_button(__("Refresh Status"), () => frm.trigger("refresh_status"), __("Actions"));
 			}
 			if (status === "Executed" && !frm.doc.payment_entry) {
 				frm.add_custom_button(
 					__("Match & Create Payment Entry"),
 					() => frm.trigger("match_create_payment_entry"),
-					__("MAIB")
+					__("Actions")
 				);
 			}
 		});
@@ -116,7 +126,6 @@ frappe.ui.form.on("Bank Payment Instruction", {
 				freeze: true,
 				freeze_message: __("Sending to MAIB..."),
 				callback(r) {
-					frm.reload_doc();
 					if (r.message) {
 						frappe.show_alert({
 							message: __("Bank status: {0}", [r.message.status || ""]),
@@ -124,8 +133,50 @@ frappe.ui.form.on("Bank Payment Instruction", {
 						});
 					}
 				},
+				always() {
+					frm.reload_doc();
+				},
 			});
 		});
+	},
+
+	update_payment_date(frm) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Update Payment Date"),
+			fields: [
+				{
+					fieldname: "payment_date",
+					fieldtype: "Date",
+					label: __("Payment Date"),
+					reqd: 1,
+					default: frm.doc.payment_date,
+				},
+			],
+			primary_action_label: __("Update"),
+			primary_action(values) {
+				frappe.call({
+					method: "erpnext_moldova_banking.utils.bank_payment_instruction.update_payment_date",
+					args: {
+						name: frm.doc.name,
+						payment_date: values.payment_date,
+					},
+					freeze: true,
+					freeze_message: __("Updating payment date..."),
+					callback() {
+						dialog.hide();
+						frm.reload_doc();
+						frappe.show_alert({
+							message: __("Payment Date updated."),
+							indicator: "green",
+						});
+					},
+				});
+			},
+		});
+		dialog.set_values({
+			payment_date: frm.doc.payment_date,
+		});
+		dialog.show();
 	},
 
 	refresh_status(frm) {

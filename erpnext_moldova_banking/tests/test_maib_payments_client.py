@@ -18,6 +18,7 @@ from erpnext_moldova_banking.providers.maib.payments import (
 	build_ordinary_payment_xml,
 	create_ordinary_payment,
 	format_transfer_details_description,
+	is_stale_payment_date_error,
 	looks_like_transfer_identity,
 	map_maib_status,
 	parse_transfer_details_xml,
@@ -27,9 +28,11 @@ from erpnext_moldova_banking.providers.maib.payments import (
 from erpnext_moldova_banking.tests.utils import enable_maib_settings
 from erpnext_moldova_banking.utils.bank_payment_instruction import (
 	_next_document_number,
+	_record_send_failure,
 	make_document_number,
 	refresh_instruction_status,
 	send_instruction_to_maib,
+	update_payment_date,
 )
 from erpnext_moldova_banking.utils.maib_sync import (
 	_normalize_company_selection,
@@ -48,6 +51,73 @@ class TestMaibPaymentsClient(FrappeTestCase):
 		self.assertEqual(map_maib_status("Canceled"), "Canceled")
 		self.assertEqual(map_maib_status(""), "API Error")
 		self.assertEqual(map_maib_status("SomethingNew"), "In Process")
+
+	def test_stale_payment_date_error_detection(self):
+		message = (
+			"MAIB payment request failed (400): PredicateValidator Creation date cannot be "
+			"earlier than current date '2026-11-09'. GreaterThanOrEqualValidator Execution date "
+			"cannot be earlier than current date '2026-11-09'."
+		)
+		self.assertTrue(is_stale_payment_date_error(message))
+		self.assertFalse(is_stale_payment_date_error("MAIB payment request failed (500): timeout"))
+		self.assertFalse(is_stale_payment_date_error(""))
+
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.log_error")
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.db.commit")
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction._set_instruction_fields")
+	def test_send_failure_logs_and_keeps_not_sent_for_stale_date(self, mock_set, _commit, mock_log):
+		exc = frappe.ValidationError(
+			"PredicateValidator Creation date cannot be earlier than current date '2026-11-09'."
+		)
+		_record_send_failure("BPI-0001", exc)
+
+		values = mock_set.call_args.args[1]
+		self.assertEqual(values["bank_status"], "Not Sent")
+		self.assertIn("Creation date cannot be earlier", values["api_error"])
+		mock_log.assert_called_once()
+		self.assertEqual(mock_log.call_args.kwargs["reference_name"], "BPI-0001")
+
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.log_error")
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.db.commit")
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction._set_instruction_fields")
+	def test_send_failure_logs_and_sets_api_error(self, mock_set, _commit, mock_log):
+		exc = frappe.ValidationError("MAIB payment request failed (500): unavailable")
+		_record_send_failure("BPI-0002", exc)
+
+		self.assertEqual(mock_set.call_args.args[1]["bank_status"], "API Error")
+		mock_log.assert_called_once()
+
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.db.set_value")
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.get_doc")
+	@patch("erpnext_moldova_banking.utils.bank_payment_instruction.frappe.has_permission")
+	def test_update_payment_date_requires_not_sent(self, _permission, mock_get_doc, mock_set_value):
+		doc = MagicMock()
+		doc.name = "BPI-0001"
+		doc.docstatus = 1
+		doc.payment_date = "2026-11-08"
+		doc.get.side_effect = lambda key: {"bank_status": "API Error", "api_error": "timeout"}.get(key)
+		mock_get_doc.return_value = doc
+
+		with self.assertRaises(frappe.ValidationError):
+			update_payment_date("BPI-0001", "2026-11-09")
+		mock_set_value.assert_not_called()
+
+		doc.get.side_effect = lambda key: {
+			"bank_status": "API Error",
+			"api_error": "Creation date cannot be earlier than current date '2026-11-09'.",
+		}.get(key)
+		with patch(
+			"erpnext_moldova_banking.utils.bank_payment_instruction.today",
+			return_value="2026-11-09",
+		):
+			result = update_payment_date("BPI-0001", "2026-11-09")
+
+		self.assertEqual(result["payment_date"], "2026-11-09")
+		saved = mock_set_value.call_args.args[2]
+		self.assertEqual(saved["payment_date"].isoformat(), "2026-11-09")
+		self.assertEqual(saved["bank_status"], "Not Sent")
+		self.assertEqual(saved["api_error"], "")
+		doc.add_comment.assert_called_once()
 
 	def test_legacy_test_token_url_is_upgraded_at_runtime(self):
 		settings = frappe._dict(

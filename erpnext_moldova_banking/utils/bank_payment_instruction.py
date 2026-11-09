@@ -11,6 +11,7 @@ from frappe.utils import cint, flt, getdate, now_datetime, today
 
 from erpnext_moldova_banking.providers.maib.payments import (
 	create_ordinary_payment,
+	is_stale_payment_date_error,
 	map_maib_status,
 	query_instruction_states,
 )
@@ -482,6 +483,57 @@ def build_ordinary_payload(doc) -> dict[str, Any]:
 	}
 
 
+def _record_send_failure(name: str, exc: Exception) -> None:
+	"""Persist a failed MAIB send and write it to the Error Log.
+
+	A rejected payment date means the bank did not accept the instruction.
+	That stays Not Sent so the date can be corrected and the payment resent.
+	Every other send failure is API Error.
+	"""
+	message = str(exc)
+	bank_status = "Not Sent" if is_stale_payment_date_error(message) else "API Error"
+	_set_instruction_fields(name, {"bank_status": bank_status, "api_error": message[:1000]})
+	frappe.db.commit()
+	frappe.log_error(
+		title=f"MAIB payment send failed for {name}",
+		message=frappe.get_traceback(),
+		reference_doctype=DOCTYPE,
+		reference_name=name,
+	)
+	frappe.db.commit()
+
+
+@frappe.whitelist()
+def update_payment_date(name: str, payment_date: str) -> dict[str, str]:
+	"""Set Payment Date on a submitted instruction that the bank has not accepted."""
+	frappe.has_permission(DOCTYPE, "write", throw=True)
+	doc = frappe.get_doc(DOCTYPE, name)
+	if doc.docstatus != 1:
+		frappe.throw(_("Payment Date can be updated only for submitted documents."))
+	status = doc.get("bank_status") or "Not Sent"
+	stale_date_error = status == "API Error" and is_stale_payment_date_error(doc.get("api_error"))
+	if status != "Not Sent" and not stale_date_error:
+		frappe.throw(_("Payment Date can be updated only when Bank Status is Not Sent."))
+	if not payment_date:
+		frappe.throw(_("Payment Date is required."))
+
+	new_date = getdate(payment_date)
+	if new_date < getdate(today()):
+		frappe.throw(_("Payment Date cannot be earlier than today."))
+
+	old_date = doc.payment_date
+	values: dict[str, Any] = {"payment_date": new_date, "api_error": ""}
+	if stale_date_error:
+		values["bank_status"] = "Not Sent"
+	frappe.db.set_value(DOCTYPE, doc.name, values, update_modified=False)
+	if str(old_date or "") != str(new_date):
+		doc.add_comment(
+			"Comment",
+			_("Updated Payment Date from {0} to {1}").format(old_date or "—", new_date),
+		)
+	return {"payment_date": str(new_date)}
+
+
 def _set_instruction_fields(name: str, values: dict[str, Any]):
 	values = dict(values)
 	values["last_sync"] = now_datetime()
@@ -691,45 +743,8 @@ def make_from_purchase_invoices(purchase_invoices) -> dict:
 
 @frappe.whitelist()
 def make_from_purchase_invoice(purchase_invoice: str) -> dict:
-	"""Create a draft Bank Payment Instruction from a Purchase Invoice."""
-	frappe.has_permission(DOCTYPE, "create", throw=True)
-	pi = frappe.get_doc("Purchase Invoice", purchase_invoice)
-	if pi.docstatus != 1:
-		frappe.throw(_("Submit the Purchase Invoice first."))
-	if flt(pi.outstanding_amount) <= 0:
-		frappe.throw(_("Purchase Invoice {0} has no outstanding amount.").format(pi.name))
-
-	existing = find_open_instruction_for_invoice(pi.name)
-	if existing:
-		return {"name": existing, "existing": True}
-
-	party_ba = _resolve_supplier_bank_account(pi.supplier)
-	if not party_ba:
-		frappe.throw(_("Set a supplier Bank Account for {0}.").format(pi.supplier))
-
-	doc = frappe.new_doc(DOCTYPE)
-	doc.company = pi.company
-	doc.bank_provider = "MAIB"
-	doc.payment_date = today()
-	doc.company_bank_account = _resolve_company_bank_account(pi.company, "Supplier", pi.supplier)
-	doc.party_type = "Supplier"
-	doc.party = pi.supplier
-	doc.party_bank_account = party_ba
-	doc.amount = flt(pi.outstanding_amount)
-	doc.currency = pi.currency or frappe.db.get_value("Company", pi.company, "default_currency")
-	purpose = get_invoice_payment_purpose(pi.name) or {}
-	doc.append(
-		"invoices",
-		{
-			"purchase_invoice": pi.name,
-			"reference_description": clean_instruction_to_bank(purpose.get("document") or ""),
-			"outstanding_amount": flt(pi.outstanding_amount),
-			"allocated_amount": flt(pi.outstanding_amount),
-		},
-	)
-	doc.instruction_to_bank = build_instruction_to_bank_for_invoices([pi.name])
-	doc.insert()
-	return {"name": doc.name, "existing": False}
+	"""Return a new unsaved Bank Payment Instruction for one Purchase Invoice."""
+	return make_from_purchase_invoices([purchase_invoice])
 
 
 @frappe.whitelist()
@@ -757,8 +772,7 @@ def send_instruction_to_maib(name: str) -> dict[str, Any]:
 	try:
 		result = create_ordinary_payment(payload, company=doc.company)
 	except Exception as e:
-		_set_instruction_fields(doc.name, {"bank_status": "API Error", "api_error": str(e)[:1000]})
-		frappe.db.commit()
+		_record_send_failure(doc.name, e)
 		raise
 
 	_set_instruction_fields(
