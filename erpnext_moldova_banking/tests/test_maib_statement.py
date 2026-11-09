@@ -3,7 +3,7 @@
 
 from frappe.tests.utils import FrappeTestCase
 
-from erpnext_moldova_banking.providers.maib.client import iban_to_maib_account_id
+from erpnext_moldova_banking.providers.maib.client import build_statement_request_xml, iban_to_maib_account_id
 from erpnext_moldova_banking.providers.maib.statement import parse_statement_xml
 from erpnext_moldova_banking.tests.utils import load_fixture
 
@@ -85,6 +85,19 @@ class TestMaibStatementParse(FrappeTestCase):
 		</Date>
 		</Account></Operational></root>"""
 		self.assertEqual(parse_statement_xml(xml), [])
+
+	def test_statement_request_uses_operational_date_unless_omitted(self):
+		xml = build_statement_request_xml("22510000001", "20261101", "20261109")
+		self.assertIn("<UseActualTransactionDate>N</UseActualTransactionDate>", xml)
+		self.assertIn("<ChargeAgreed>Y</ChargeAgreed>", xml)
+
+		actual = build_statement_request_xml(
+			"22510000001",
+			"20261101",
+			"20261109",
+			use_actual_transaction_date=None,
+		)
+		self.assertNotIn("UseActualTransactionDate", actual)
 
 	def test_iban_to_maib_account_id(self):
 		self.assertEqual(iban_to_maib_account_id("MD24AG000000022510000001"), "22510000001")

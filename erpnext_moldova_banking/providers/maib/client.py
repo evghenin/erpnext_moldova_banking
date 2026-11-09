@@ -243,16 +243,35 @@ def _xml_headers(token: str) -> dict[str, str]:
 	}
 
 
-def build_statement_request_xml(account_id: str, from_date: str, to_date: str, product: str = "Operational") -> str:
-	"""from_date/to_date are yyyyMMdd strings."""
+def build_statement_request_xml(
+	account_id: str,
+	from_date: str,
+	to_date: str,
+	product: str = "Operational",
+	use_actual_transaction_date: str | None = "N",
+) -> str:
+	"""from_date/to_date are yyyyMMdd strings.
+
+	use_actual_transaction_date N is the operational statement date. An empty
+	value omits the tag so MAIB returns the actual execution date.
+	"""
+	date_mode = _statement_date_mode_xml(use_actual_transaction_date)
 	return (
 		'<?xml version="1.0" encoding="UTF-8"?>'
 		"<root>"
 		f"<{product}><Account>{frappe.as_unicode(account_id)}</Account></{product}>"
 		f"<Date><From>{from_date}</From><To>{to_date}</To></Date>"
+		f"{date_mode}"
 		"<ChargeAgreed>Y</ChargeAgreed>"
 		"</root>"
 	)
+
+
+def _statement_date_mode_xml(use_actual_transaction_date: str | None) -> str:
+	flag = (use_actual_transaction_date or "").strip().upper()
+	if flag not in {"Y", "N"}:
+		return ""
+	return f"<UseActualTransactionDate>{flag}</UseActualTransactionDate>"
 
 
 def fetch_statement_xml(
@@ -261,6 +280,7 @@ def fetch_statement_xml(
 	to_yyyymmdd: str,
 	company: str | None = None,
 	product: str = "Operational",
+	use_actual_transaction_date: str | None = "N",
 ) -> str:
 	token_payload = get_access_token(company=company)
 	token = token_payload["access_token"]
@@ -269,7 +289,13 @@ def fetch_statement_xml(
 		frappe.throw(_("MAIB API Base URL is required."))
 
 	url = f"{base}{STATEMENT_PATH}"
-	body = build_statement_request_xml(account_id, from_yyyymmdd, to_yyyymmdd, product=product)
+	body = build_statement_request_xml(
+		account_id,
+		from_yyyymmdd,
+		to_yyyymmdd,
+		product=product,
+		use_actual_transaction_date=use_actual_transaction_date,
+	)
 
 	try:
 		response = requests.post(url, data=body.encode("utf-8"), headers=_xml_headers(token), timeout=120)

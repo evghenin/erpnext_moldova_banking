@@ -23,7 +23,11 @@ from erpnext_moldova_banking.providers.maib.payments import (
 	query_transfer_details,
 )
 from erpnext_moldova_banking.providers.maib.statement import parse_statement_xml
-from erpnext_moldova_banking.utils.bank_transaction_unique_key import find_existing_bank_transaction
+from erpnext_moldova_banking.utils.bank_transaction_unique_key import (
+	DATE_MATCH_WINDOW_DAYS,
+	find_existing_bank_transaction,
+	find_existing_by_transaction_id,
+)
 from erpnext_moldova_banking.utils.transaction_ingest import ingest_transactions
 
 SETTINGS_DOCTYPE = "Moldova Banking Settings"
@@ -156,7 +160,7 @@ def _transfer_details_belong_to_row(
 	detail_date = _detail_value(details, "Date")
 	if detail_date and row.get("date"):
 		try:
-			if abs((getdate(detail_date) - getdate(row.get("date"))).days) > 1:
+			if abs((getdate(detail_date) - getdate(row.get("date"))).days) > DATE_MATCH_WINDOW_DAYS:
 				return False
 		except Exception:
 			return False
@@ -206,6 +210,9 @@ def _resolve_transfer_identity(row: dict[str, Any], *, company: str | None = Non
 
 
 def _is_existing_bank_transaction(bank_account: str, row: dict[str, Any]) -> bool:
+	transaction_id = (row.get("transaction_id") or "").strip()
+	if transaction_id and find_existing_by_transaction_id(bank_account, transaction_id):
+		return True
 	return bool(
 		find_existing_bank_transaction(
 			bank_account=bank_account,
