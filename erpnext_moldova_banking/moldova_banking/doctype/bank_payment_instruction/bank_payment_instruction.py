@@ -30,12 +30,12 @@ class BankPaymentInstruction(Document):
 
 	def before_cancel(self):
 		status = self.bank_status or "Not Sent"
-		if status in ("Rejected", "Canceled"):
+		if status in ("Not Sent", "Rejected", "Canceled"):
 			return
 		frappe.throw(
 			_(
 				"Bank Payment Instruction {0} cannot be cancelled in the current bank status ({1}). "
-				"Cancellation is allowed only for Rejected and Canceled. "
+				"Cancellation is allowed only for Not Sent, Rejected, and Canceled. "
 				"Cancel the payment in the bank interface first."
 			).format(self.name, status),
 			title=_("Cannot Cancel"),
